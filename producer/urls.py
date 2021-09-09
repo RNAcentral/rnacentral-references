@@ -13,7 +13,7 @@ limitations under the License.
 from aiohttp import web
 from aiohttp_swagger import setup_swagger
 
-from .views.index import index
+from producer.views.index import index
 
 
 def setup_routes(app):
