@@ -1,0 +1,67 @@
+"""
+Copyright [2009-2019] EMBL-European Bioinformatics Institute
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+     http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
+import sqlalchemy as sa
+import psycopg2
+
+from consumer.settings import PORT
+from database import DatabaseConnectionError
+from database.models import CONSUMER_STATUS_CHOICES
+from netifaces import interfaces, ifaddresses, AF_INET
+
+
+class ConsumerConnectionError(Exception):
+    def __init__(self, text):
+        self.text = text
+
+    def __str__(self):
+        return self.text
+
+
+def get_ip(app):
+    """
+    Stolen from:
+    https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib?page=1&tab=active#tab-top
+    """
+    addresses = []
+    for ifaceName in interfaces():
+        for i in ifaddresses(ifaceName).setdefault(AF_INET, [{'addr': 'No IP addr'}]):
+            addresses.append(i['addr'])
+
+    addresses = [address for address in addresses if address != 'No IP addr']
+
+    # return first non-localhost IP, if available
+    if app['settings'].ENVIRONMENT == 'LOCAL':
+        return addresses[0]
+    else:
+        return addresses[1]
+
+
+async def register_consumer_in_the_database(app):
+    """Utility for consumer to register itself in the database."""
+    try:
+        async with app['engine'].acquire() as connection:
+            sql_query = sa.text('''
+                INSERT INTO consumer(ip, status, port)
+                VALUES (:consumer_ip, :status, :port)
+            ''')
+            await connection.execute(
+                sql_query,
+                consumer_ip=get_ip(app),
+                status=CONSUMER_STATUS_CHOICES.available,
+                port=PORT
+            )
+    except psycopg2.IntegrityError as e:
+        pass  # this is usually a duplicate key error - which is acceptable
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
