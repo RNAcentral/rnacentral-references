@@ -48,7 +48,10 @@ def get_ip(app):
 
 
 async def register_consumer_in_the_database(app):
-    """Utility for consumer to register itself in the database."""
+    """
+    Utility for consumer to register itself in the database
+    :param app: params to connect to the db
+    """
     try:
         async with app['engine'].acquire() as connection:
             sql_query = sa.text('''
@@ -63,5 +66,25 @@ async def register_consumer_in_the_database(app):
             )
     except psycopg2.IntegrityError as e:
         pass  # this is usually a duplicate key error - which is acceptable
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
+
+
+async def get_consumer_status(engine, consumer_ip):
+    """
+    Get consumer status from the database
+    :param engine: params to connect to the db
+    :param consumer_ip: IP address of the consumer
+    :return: consumer status
+    """
+    try:
+        async with engine.acquire() as connection:
+            sql_query = sa.text('''
+                SELECT status
+                FROM consumer
+                WHERE ip=:consumer_ip
+            ''')
+            async for row in connection.execute(sql_query, consumer_ip=consumer_ip):
+                return row.status
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e
