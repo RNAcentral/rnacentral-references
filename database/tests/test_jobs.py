@@ -14,7 +14,7 @@ import datetime
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.job import save_job, search_performed
+from database.job import find_job_to_run, save_job, search_performed
 from database.tests.test_base import DBTestCase
 
 
@@ -32,7 +32,6 @@ class SaveJobTestCase(DBTestCase):
             self.app['engine'],
             value="foo"
         )
-        print(job_id)
         assert job_id == "foo"
 
 
@@ -57,3 +56,21 @@ class SearchPerformedTestCase(DBTestCase):
     async def test_search_performed(self):
         job = await search_performed(self.app['engine'], 'bar')
         assert job is not None
+
+
+class FindJobTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.FindJobTestCase
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+    @unittest_run_loop
+    async def test_save_job(self):
+        job_id = await save_job(
+            self.app['engine'],
+            value="foo"
+        )
+        find_job = await find_job_to_run(self.app['engine'])
+        assert find_job[0][0] == job_id

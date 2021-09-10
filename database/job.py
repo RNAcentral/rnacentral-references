@@ -16,6 +16,34 @@ import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
 from database.models import Job, JOB_STATUS_CHOICES
+from operator import itemgetter
+
+
+async def find_job_to_run(engine):
+    """
+    Find jobs that need to be performed and delivered to consumers for processing
+    :param engine: params to connect to the db
+    :return: sorted list of jobs
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                query = (sa.select([Job.c.job_id, Job.c.status, Job.c.submitted])
+                         .select_from(Job)
+                         .where(Job.c.status == JOB_STATUS_CHOICES.started))
+
+                # get jobs
+                output = []
+                async for row in connection.execute(query):
+                    output.append((row.job_id, row.submitted))
+
+                return sorted(output, key=itemgetter(1))  # sort by date
+
+            except Exception as e:
+                raise SQLError("Failed to find jobs in find_job_to_run()") from e
+
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
 
 
 async def search_performed(engine, value):
