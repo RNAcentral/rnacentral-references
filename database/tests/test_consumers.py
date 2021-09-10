@@ -12,8 +12,8 @@ limitations under the License.
 """
 from aiohttp.test_utils import unittest_run_loop
 
-from database.consumers import get_ip, get_consumer_status, register_consumer_in_the_database
-from database.models import CONSUMER_STATUS_CHOICES
+from database.consumers import find_available_consumers, get_ip, get_consumer_status, register_consumer_in_the_database
+from database.models import Consumer, CONSUMER_STATUS_CHOICES
 from database.tests.test_base import DBTestCase
 
 
@@ -33,3 +33,48 @@ class RegisterConsumerInTheDatabaseTestCase(DBTestCase):
 
         consumer = await get_consumer_status(self.app['engine'], consumer_ip)
         assert consumer == CONSUMER_STATUS_CHOICES.available
+
+
+class FindAvailableConsumersTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+
+    ENVIRONMENT=TEST python -m unittest database.tests.test_consumers.FindAvailableConsumersTestCase
+
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+        async with self.app['engine'].acquire() as connection:
+            await connection.execute(
+                Consumer.insert().values(
+                    ip='192.168.0.2',
+                    status=CONSUMER_STATUS_CHOICES.available
+                )
+            )
+
+            await connection.execute(
+                Consumer.insert().values(
+                    ip='192.168.0.3',
+                    status=CONSUMER_STATUS_CHOICES.busy
+                )
+            )
+
+            await connection.execute(
+                Consumer.insert().values(
+                    ip='192.168.0.4',
+                    status=CONSUMER_STATUS_CHOICES.available
+                )
+            )
+
+    @unittest_run_loop
+    async def test_find_available_consumer(self):
+        consumers = await find_available_consumers(self.app['engine'])
+
+        for index, row in enumerate(consumers):
+            if index == 0:
+                assert row.ip == '192.168.0.2'
+                assert row.status == CONSUMER_STATUS_CHOICES.available
+            elif index == 1:
+                assert row.ip == '192.168.0.4'
+                assert row.status == CONSUMER_STATUS_CHOICES.available

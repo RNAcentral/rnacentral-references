@@ -14,6 +14,7 @@ limitations under the License.
 import sqlalchemy as sa
 import psycopg2
 
+from collections import namedtuple
 from consumer.settings import PORT
 from database import DatabaseConnectionError
 from database.models import CONSUMER_STATUS_CHOICES
@@ -86,5 +87,31 @@ async def get_consumer_status(engine, consumer_ip):
             ''')
             async for row in connection.execute(sql_query, consumer_ip=consumer_ip):
                 return row.status
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
+
+
+async def find_available_consumers(engine):
+    """
+    Returns a list of available consumers that can be used to run
+    :param engine: params to connect to the db
+    :return: list of consumers available, if any
+    """
+    Consumer = namedtuple('Consumer', ['ip', 'status', 'port', 'job_id'])
+
+    try:
+        async with engine.acquire() as connection:
+            query = sa.text('''
+                SELECT ip, status, port, job_id
+                FROM consumer
+                WHERE status=:status
+            ''')
+
+            result = []
+            async for row in connection.execute(query, status=CONSUMER_STATUS_CHOICES.available):
+                result.append(Consumer(row[0], row[1], row[2], row[3]))
+
+        return result
+
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e
