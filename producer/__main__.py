@@ -49,7 +49,6 @@ async def check_jobs_and_consumers(app):
         if unfinished_job:
             job = unfinished_job.pop(0)
             await delegate_job_to_consumer(
-                engine=app['engine'],
                 consumer_ip=consumer.ip,
                 consumer_port=consumer.port,
                 job_id=job[0]
