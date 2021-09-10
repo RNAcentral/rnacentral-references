@@ -21,14 +21,6 @@ from database.models import CONSUMER_STATUS_CHOICES
 from netifaces import interfaces, ifaddresses, AF_INET
 
 
-class ConsumerConnectionError(Exception):
-    def __init__(self, text):
-        self.text = text
-
-    def __str__(self):
-        return self.text
-
-
 def get_ip(app):
     """
     Stolen from:
