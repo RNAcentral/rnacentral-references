@@ -13,7 +13,9 @@ limitations under the License.
 
 from aiohttp import web
 from consumer.views.index import index
+from consumer.views.submit_job import submit_job
 
 
 def setup_routes(app):
     app.add_routes([web.get('/', index)])
+    app.add_routes([web.post('/submit-job', submit_job)])
