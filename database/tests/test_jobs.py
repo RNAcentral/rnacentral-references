@@ -14,7 +14,7 @@ import datetime
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.job import find_job_to_run, save_job, search_performed
+from database.job import find_job_to_run, save_job, search_performed, set_job_status
 from database.tests.test_base import DBTestCase
 
 
@@ -74,3 +74,26 @@ class FindJobTestCase(DBTestCase):
         )
         find_job = await find_job_to_run(self.app['engine'])
         assert find_job[0][0] == job_id
+
+
+class SetJobStatusTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+    ENVIRONMENT=TEST python -m unittest database.tests.test_job_chunks.SetJobStatusTestCase
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+        async with self.app['engine'].acquire() as connection:
+            await connection.execute(
+                Job.insert().values(
+                    job_id='FOO',
+                    submitted=datetime.datetime.now(),
+                    status=JOB_STATUS_CHOICES.pending
+                )
+            )
+
+    @unittest_run_loop
+    async def test_set_job_status_started(self):
+        job = await set_job_status(self.app['engine'], 'FOO', JOB_STATUS_CHOICES.started)
+        assert job == 'FOO'

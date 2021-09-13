@@ -79,7 +79,7 @@ async def save_job(engine, value):
                     Job.insert().values(
                         job_id=value,
                         submitted=datetime.datetime.now(),
-                        status=JOB_STATUS_CHOICES.started
+                        status=JOB_STATUS_CHOICES.pending
                     )
                 )
                 return value
@@ -87,3 +87,48 @@ async def save_job(engine, value):
                 raise SQLError("Failed to save job for id = %s to the database" % value) from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in save_job() for id %s" % value) from e
+
+
+async def set_job_status(engine, job_id, status):
+    """
+    Function to change job status.
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :param status: an option from consumer.JOB_CHUNK_STATUS
+    :return: None
+    """
+    finished = None
+    if status == JOB_STATUS_CHOICES.success or status == JOB_STATUS_CHOICES.error:
+        finished = datetime.datetime.now()
+
+    try:
+        async with engine.acquire() as connection:
+            try:
+                if finished:
+                    query = sa.text('''
+                        UPDATE job
+                        SET status=:status, finished=:finished
+                        WHERE job_id=:job_id
+                        RETURNING *;
+                    ''')
+
+                    job = None  # if connection didn't return any rows, return None
+                    async for row in connection.execute(query, job_id=job_id, status=status, finished=finished):
+                        job = row.job_id
+                    return job
+                else:
+                    query = sa.text('''
+                        UPDATE job
+                        SET status=:status
+                        WHERE job_id=:job_id
+                        RETURNING *;
+                    ''')
+
+                    job = None  # if connection didn't return any rows, return None
+                    async for row in connection.execute(query, job_id=job_id, status=status):
+                        job = row.job_id
+                    return job
+            except Exception as e:
+                raise SQLError("Failed to set_job_status, job_id = %s, status = %s" % (job_id, status)) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in set_job_status, job_id = %s" % job_id) from e
