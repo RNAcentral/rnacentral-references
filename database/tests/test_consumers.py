@@ -12,7 +12,8 @@ limitations under the License.
 """
 from aiohttp.test_utils import unittest_run_loop
 
-from database.consumers import find_available_consumers, get_ip, get_consumer_status, register_consumer_in_the_database
+from database.consumers import find_available_consumers, get_ip, get_consumer_status, set_consumer_status_and_job_id,\
+    register_consumer_in_the_database
 from database.models import Consumer, CONSUMER_STATUS_CHOICES
 from database.tests.test_base import DBTestCase
 
@@ -78,3 +79,29 @@ class FindAvailableConsumersTestCase(DBTestCase):
             elif index == 1:
                 assert row.ip == '192.168.0.4'
                 assert row.status == CONSUMER_STATUS_CHOICES.available
+
+
+class SetConsumerStatusAndJobIdTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+    ENVIRONMENT=TEST python -m unittest database.tests.test_consumers.SetConsumerStatusAndJobIdTestCase
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+        async with self.app['engine'].acquire() as connection:
+            self.consumer_ip = '192.168.1.1'
+            await connection.execute(
+                Consumer.insert().values(
+                    ip=self.consumer_ip,
+                    status=CONSUMER_STATUS_CHOICES.available
+                )
+            )
+
+    @unittest_run_loop
+    async def test_set_consumer_status_and_job_id(self):
+        await set_consumer_status_and_job_id(self.app['engine'], self.consumer_ip, CONSUMER_STATUS_CHOICES.busy, 'FOO')
+
+        async with self.app['engine'].acquire() as connection:
+            consumer_status = await get_consumer_status(self.app['engine'], self.consumer_ip)
+            assert consumer_status == CONSUMER_STATUS_CHOICES.busy

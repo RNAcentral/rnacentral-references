@@ -107,3 +107,25 @@ async def find_available_consumers(engine):
 
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e
+
+
+async def set_consumer_status_and_job_id(engine, consumer_ip, status, job_id):
+    """
+    Change the status of the consumer and also register which job_id is running.
+    :param engine: params to connect to the db
+    :param consumer_ip: consumer IP address
+    :param status: new consumer status
+    :param job_id: id of the job
+    """
+    try:
+        async with engine.acquire() as connection:
+            query = sa.text('''
+                UPDATE consumer
+                SET status=:status, job_id=:job_id
+                WHERE ip=:consumer_ip
+                RETURNING consumer.*;
+            ''')
+            await connection.execute(query, consumer_ip=consumer_ip, status=status, job_id=job_id)
+
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
