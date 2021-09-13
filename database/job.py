@@ -30,7 +30,7 @@ async def find_job_to_run(engine):
             try:
                 query = (sa.select([Job.c.job_id, Job.c.status, Job.c.submitted])
                          .select_from(Job)
-                         .where(Job.c.status == JOB_STATUS_CHOICES.started))
+                         .where(Job.c.status == JOB_STATUS_CHOICES.pending))
 
                 # get jobs
                 output = []
