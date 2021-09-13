@@ -12,7 +12,6 @@ limitations under the License.
 """
 
 import logging
-import os
 
 from aiojobs.aiohttp import setup as setup_aiojobs
 from aiohttp import web
@@ -30,10 +29,6 @@ async def on_startup(app):
 
     # register self in the database
     await register_consumer_in_the_database(app)
-
-    # clear results directories
-    for name in os.listdir(settings.RESULTS_DIR):
-        os.remove(settings.RESULTS_DIR / name)
 
 
 def create_app():
