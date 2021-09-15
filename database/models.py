@@ -91,6 +91,7 @@ Result = sa.Table(
     sa.Column('title', sa.Text),
     sa.Column('abstract', sa.Text),
     sa.Column('body', sa.Text),
+    sa.Column('author', sa.Text),
     sa.Column('pmid', sa.String(100)),
     sa.Column('doi', sa.String(100))
 )
@@ -142,6 +143,7 @@ async def migrate(env):
                   title TEXT,
                   abstract TEXT,
                   body TEXT,
+                  author TEXT,
                   pmid VARCHAR(100),
                   doi VARCHAR(100),
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
