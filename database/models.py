@@ -95,16 +95,6 @@ Result = sa.Table(
     sa.Column('doi', sa.String(100))
 )
 
-"""Authors of a specific Result"""
-Author = sa.Table(
-    'author',
-    metadata,
-    sa.Column('author_id', sa.Integer, primary_key=True),
-    sa.Column('result_id', sa.Integer, sa.ForeignKey('result.result_id')),
-    sa.Column('surname', sa.String(100)),
-    sa.Column('given_names', sa.String(100))
-)
-
 # Migrations
 # ----------
 
@@ -125,7 +115,6 @@ async def migrate(env):
 
     async with engine:
         async with engine.acquire() as connection:
-            await connection.execute('DROP TABLE IF EXISTS author')
             await connection.execute('DROP TABLE IF EXISTS result')
             await connection.execute('DROP TABLE IF EXISTS job')
             await connection.execute('DROP TABLE IF EXISTS consumer')
@@ -158,14 +147,4 @@ async def migrate(env):
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
-            await connection.execute('''
-                CREATE TABLE author (
-                  author_id SERIAL PRIMARY KEY,
-                  result_id INTEGER,
-                  surname VARCHAR(100),
-                  given_names VARCHAR(100),
-                  FOREIGN KEY (result_id) REFERENCES result(result_id) ON UPDATE CASCADE ON DELETE CASCADE)
-            ''')
-
             await connection.execute('''CREATE INDEX on result (job_id)''')
-            await connection.execute('''CREATE INDEX on author (result_id)''')

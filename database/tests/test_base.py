@@ -35,7 +35,6 @@ class DBTestCase(AioHTTPTestCase):
 
     async def tearDownAsync(self):
         async with self.app['engine'].acquire() as connection:
-            await connection.execute('DELETE FROM author')
             await connection.execute('DELETE FROM result')
             await connection.execute('DELETE FROM job')
             await connection.execute('DELETE FROM consumer')
