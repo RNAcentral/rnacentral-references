@@ -154,18 +154,6 @@ def get_ids_from_article(article, value):
                     pass
 
     if pattern_found:
-        # there must be a title in response
-        if 'title' not in response:
-            response['title'] = ''
-
-        # there must be an abstract in response
-        if 'abstract' not in response:
-            response['abstract'] = ''
-
-        # there must be a body in response
-        if 'body' not in response:
-            response['body'] = ''
-
         # get authors of the article
         get_contrib_group = article.find("./front/article-meta/contrib-group")
         try:
@@ -189,4 +177,24 @@ def get_ids_from_article(article, value):
 
         # add job_id
         response["job_id"] = value
+
+        # there must be title, abstract, body, author, pmid, doi, and job_id in response
+        if 'title' not in response:
+            response['title'] = ''
+
+        if 'abstract' not in response:
+            response['abstract'] = ''
+
+        if 'body' not in response:
+            response['body'] = ''
+
+        if 'author' not in response:
+            response['author'] = ''
+
+        if 'doi' not in response:
+            response['doi'] = ''
+
+        if 'pmid' not in response:
+            response['pmid'] = ''
+
     return response if response else None
