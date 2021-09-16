@@ -154,6 +154,18 @@ def get_ids_from_article(article, value):
                     pass
 
     if pattern_found:
+        # there must be a title in response
+        if 'title' not in response:
+            response['title'] = ''
+
+        # there must be an abstract in response
+        if 'abstract' not in response:
+            response['abstract'] = ''
+
+        # there must be a body in response
+        if 'body' not in response:
+            response['body'] = ''
+
         # get authors of the article
         get_contrib_group = article.find("./front/article-meta/contrib-group")
         try:
