@@ -96,6 +96,10 @@ async def seek_references(engine, job_id, consumer_ip):
     await set_consumer_status_and_job_id(engine, consumer_ip, CONSUMER_STATUS_CHOICES.available, "")
 
 
+def contains_value(value, sentence):
+    return f' {value} ' in f' {sentence} ' or f' {value},' in f' {sentence} ' or f' {value}.' in f' {sentence} '
+
+
 def get_ids_from_article(article, value):
     """
     Search for the value in three different places: title, abstract, and body.
@@ -113,7 +117,7 @@ def get_ids_from_article(article, value):
         try:
             title_blob = TextBlob(get_title.text)
             for sentence in title_blob.sentences:
-                if value in sentence.lower():
+                if contains_value(value, sentence.lower()):
                     response["title"] = sentence.raw
                     pattern_found = True
         except TypeError:
@@ -128,7 +132,7 @@ def get_ids_from_article(article, value):
                 try:
                     item_blob = TextBlob(item.text)
                     for sentence in item_blob.sentences:
-                        if value in sentence.lower():
+                        if contains_value(value, sentence.lower()):
                             response["abstract"] = sentence.raw
                             pattern_found_in_abstract = True
                             pattern_found = True
@@ -145,7 +149,7 @@ def get_ids_from_article(article, value):
                 try:
                     item_blob = TextBlob(item.text)
                     for sentence in item_blob.sentences:
-                        if value in sentence.lower():
+                        if contains_value(value, sentence.lower()):
                             response["body"] = sentence.raw
                             pattern_found_in_body = True
                             pattern_found = True
