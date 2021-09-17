@@ -27,6 +27,9 @@ def main():
     url_data = requests.get(url).text
     soup = BeautifulSoup(url_data, "html.parser")
 
+    # create directory to store xml files, if necessary
+    Path("consumer/files").mkdir(parents=True, exist_ok=True)
+
     # list of xml files in consumer/files directory
     path_to_xml_files = Path('consumer/files')
     xml_files = [file.name for file in path_to_xml_files.glob('*.xml')]
