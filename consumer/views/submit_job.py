@@ -12,6 +12,7 @@ limitations under the License.
 """
 import datetime
 import logging
+import re
 
 from aiohttp import web
 from aiojobs.aiohttp import spawn
@@ -72,21 +73,32 @@ async def seek_references(engine, job_id, consumer_ip):
 
     # read each of the xml files present in the files folder
     for file in xml_files:
+        # re.findall is faster than grep
+        # command = ["/usr/bin/grep", "-o", "-m 1", "-w", "-iF", job_id, file]
+        # output = subprocess.Popen(command, stdout=subprocess.PIPE).stdout.read()
+
         with open(file, "r") as f:
             read_data = f.read()
-            root = ET.fromstring(read_data)
 
-            # search for the string in each of the articles
-            for article in root.findall("./article"):
-                get_id = get_ids_from_article(article, job_id)
-                if get_id:
-                    results.append(get_id)
+            # check if the file contains the job_id
+            if re.findall(job_id, read_data.lower()):
+                root = ET.fromstring(read_data)
+
+                # check which article has the job_id
+                for article in root.findall("./article"):
+                    get_id = get_ids_from_article(article, job_id)
+                    if get_id:
+                        results.append(get_id)
 
     # save results in DB
     if results:
         await save_results(engine, job_id, results)
         logging.debug("Saving {} result(s) in DB. Search performed in {} seconds".format(
             len(results), (datetime.datetime.now() - start).total_seconds())
+        )
+    else:
+        logging.debug("No article containing {} was found. Search performed in {} seconds".format(
+            job_id, (datetime.datetime.now() - start).total_seconds())
         )
 
     # set job status
