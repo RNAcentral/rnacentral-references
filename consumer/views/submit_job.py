@@ -86,9 +86,16 @@ async def seek_references(engine, job_id, consumer_ip):
 
                 # check which article has the job_id
                 for article in root.findall("./article"):
-                    get_id = get_ids_from_article(article, job_id)
-                    if get_id:
-                        results.append(get_id)
+                    found_job_id = [
+                        element for element in article.iter()
+                        if element.text and re.findall(job_id, element.text.lower())
+                    ]
+
+                    # check if job_id is in title, abstract or body
+                    if found_job_id:
+                        get_id = get_ids_from_article(article, job_id)
+                        if get_id:
+                            results.append(get_id)
 
     # save results in DB
     if results:
