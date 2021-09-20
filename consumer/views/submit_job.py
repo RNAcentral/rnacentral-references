@@ -122,59 +122,58 @@ def get_ids_from_article(article, value):
     :param value: string to search (job_id)
     :return: sentences of the article if the value is found, otherwise returns None
     """
-    get_title = article.find("./front/article-meta/title-group/article-title")
     get_abstract = article.findall(".//abstract//p")
     get_body = article.findall(".//body//p")  # TODO: Maybe remove text from the intro?
     response = {}
     pattern_found = False
 
-    if get_title:
+    # It is possible that the desired value is in several different sentences within the abstract or the body.
+    # Just take the first one for now.
+    for item in get_abstract:
+        if 'abstract' not in response:
+            try:
+                item_blob = TextBlob(item.text)
+                for sentence in item_blob.sentences:
+                    if contains_value(value, sentence.lower()):
+                        response["abstract"] = sentence.raw
+                        pattern_found = True
+                        break
+            except TypeError:
+                pass
+
+    for item in get_body:
+        if 'body' not in response:
+            try:
+                item_blob = TextBlob(item.text)
+                for sentence in item_blob.sentences:
+                    if contains_value(value, sentence.lower()):
+                        response["body"] = sentence.raw
+                        pattern_found = True
+                        break
+            except TypeError:
+                pass
+
+    if pattern_found:
+        # get title
+        get_title = article.find("./front/article-meta/title-group/article-title")
+        title = ""
+        response["title_contains_value"] = False
+
         try:
             title_blob = TextBlob(get_title.text)
             for sentence in title_blob.sentences:
+                title = title + sentence.raw + " "
                 if contains_value(value, sentence.lower()):
-                    response["title"] = sentence.raw
-                    pattern_found = True
+                    response["title_contains_value"] = True
         except TypeError:
             pass
 
-    if get_abstract:
-        # It is possible that the desired value is in several different sentences.
-        # Just take the first one for now.
-        pattern_found_in_abstract = False
-        for item in get_abstract:
-            if not pattern_found_in_abstract:
-                try:
-                    item_blob = TextBlob(item.text)
-                    for sentence in item_blob.sentences:
-                        if contains_value(value, sentence.lower()):
-                            response["abstract"] = sentence.raw
-                            pattern_found_in_abstract = True
-                            pattern_found = True
-                            break
-                except TypeError:
-                    pass
+        response["title"] = title
 
-    if get_body:
-        # It is possible that the desired value is in several different sentences.
-        # Just take the first one for now.
-        pattern_found_in_body = False
-        for item in get_body:
-            if not pattern_found_in_body:
-                try:
-                    item_blob = TextBlob(item.text)
-                    for sentence in item_blob.sentences:
-                        if contains_value(value, sentence.lower()):
-                            response["body"] = sentence.raw
-                            pattern_found_in_body = True
-                            pattern_found = True
-                            break
-                except TypeError:
-                    pass
-
-    if pattern_found:
         # get authors of the article
         get_contrib_group = article.find("./front/article-meta/contrib-group")
+        response['author'] = ''
+
         try:
             get_authors = get_contrib_group.findall(".//name")
             authors = []
@@ -188,6 +187,9 @@ def get_ids_from_article(article, value):
 
         # get pmid and doi
         article_meta = article.findall("./front/article-meta/article-id")
+        response['doi'] = ''
+        response['pmid'] = ''
+
         for item in article_meta:
             if item.attrib == {'pub-id-type': 'doi'}:
                 response["doi"] = item.text
@@ -197,23 +199,11 @@ def get_ids_from_article(article, value):
         # add job_id
         response["job_id"] = value
 
-        # there must be title, abstract, body, author, pmid, doi, and job_id in response
-        if 'title' not in response:
-            response['title'] = ''
-
+        # response must have abstract and body
         if 'abstract' not in response:
             response['abstract'] = ''
 
         if 'body' not in response:
             response['body'] = ''
-
-        if 'author' not in response:
-            response['author'] = ''
-
-        if 'doi' not in response:
-            response['doi'] = ''
-
-        if 'pmid' not in response:
-            response['pmid'] = ''
 
     return response if response else None
