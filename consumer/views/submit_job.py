@@ -73,22 +73,18 @@ async def seek_references(engine, job_id, consumer_ip):
 
     # read each of the xml files present in the files folder
     for file in xml_files:
-        # re.findall is faster than grep
-        # command = ["/usr/bin/grep", "-o", "-m 1", "-w", "-iF", job_id, file]
-        # output = subprocess.Popen(command, stdout=subprocess.PIPE).stdout.read()
-
         with open(file, "r") as f:
             read_data = f.read()
 
             # check if the file contains the job_id
-            if re.findall(job_id, read_data.lower()):
+            if re.search(job_id, read_data.lower()):
                 root = ET.fromstring(read_data)
 
                 # check which article has the job_id
                 for article in root.findall("./article"):
                     found_job_id = [
                         element for element in article.iter()
-                        if element.text and re.findall(job_id, element.text.lower())
+                        if element.text and re.search(job_id, element.text.lower())
                     ]
 
                     # check if job_id is in title, abstract or body
