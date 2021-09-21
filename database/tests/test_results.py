@@ -42,6 +42,7 @@ class SaveResults(DBTestCase):
     async def test_save_result(self):
         results = [{
             'title': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
+            'title_contains_value': True,
             'abstract': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
             'body': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
             'pmid': '123456789',
