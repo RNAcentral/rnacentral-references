@@ -1,3 +1,5 @@
 venv
 .idea
 consumer/files/*
+ansible/ssh/*
+ansible/hosts

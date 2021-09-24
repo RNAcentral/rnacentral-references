@@ -1,0 +1,10 @@
+---
+- hosts: producer
+  gather_facts: Yes
+  remote_user: centos
+  become: true
+  become_method: sudo
+  vars:
+    ansible_ssh_private_key_file: "ssh/sequence_search_rsa"
+  roles:
+    - {role: 'producer', tags: 'producer'}

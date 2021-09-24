@@ -1,0 +1,86 @@
+---
+  - name: Install yum dependencies
+    yum:
+      name:
+      - libpq-devel
+
+  - name: Delete reference directory
+    file:
+      path: /srv/reference
+      state: absent
+    ignore_errors: yes
+    tags: [ dir ]
+
+  - name: Create reference directory
+    file:
+      path: /srv/reference
+      state: directory
+      owner: centos
+      group: centos
+      mode: 0755
+    tags: [ dir ]
+
+  - name: Rsync aiohttp code
+    synchronize:
+      src: ../../../../
+      dest: /srv/reference
+      rsync_opts:
+        - "--exclude=/ansible"
+        - "--exclude=/consumer/files/*.xml"
+        - "--exclude=/__pycache__"
+        - "--exclude=/.*"
+        - "--exclude=/venv"
+    tags: [ rsync ]
+
+  - pip:
+      requirements: /srv/reference/requirements.txt
+      virtualenv: /srv/reference/venv
+      virtualenv_command: /usr/local/bin/python3.7 -m venv
+    tags: [ pip ]
+
+  - name: Chown reference code
+    command: "chown -R centos:centos /srv/reference"
+    changed_when: false
+    tags: [ perm ]
+
+  - name: Chmod aiohttp code
+    command: "chmod 755 /srv/reference"
+    tags: [ perm ]
+
+#
+#  - name: Get running processes
+#    shell: "sudo kill $(ps -ef | grep -v grep | grep -w consumer | awk '{print $2}')"
+#    register: running_processes
+#    ignore_errors: yes
+#    tags: [ restart ]
+#
+#  - name: Kill running processes
+#    shell: "kill {{ item }}"
+#    with_items: "{{ running_processes.stdout_lines }}"
+#    tags: [ restart ]
+#
+#  - wait_for:
+#      path: "/proc/{{ item }}/status"
+#      state: absent
+#    with_items: "{{ running_processes.stdout_lines }}"
+#    ignore_errors: yes
+#    register: killed_processes
+#    tags: [ restart ]
+#
+#  - name: Force kill stuck processes
+#    shell: "kill -9 {{ item }}"
+#    with_items: "{{ killed_processes.results | select('failed') | map(attribute='item') | list }}"
+#    tags: [ restart ]
+#
+#  - wait_for:
+#      path: "/proc/{{ item }}/status"
+#      state: absent
+#    with_items: "{{ running_processes.stdout_lines }}"
+#    ignore_errors: yes
+#    tags: [ restart ]
+#
+#  - name: Run consumer service
+#    shell:
+#      chdir: /srv
+#      cmd: ENVIRONMENT=PRODUCTION nohup /usr/local/bin/python3.7 -m sequence_search.consumer &> /var/log/gunicorn/access_log &
+#    tags: [ restart, quick ]
