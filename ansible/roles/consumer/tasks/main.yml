@@ -45,7 +45,8 @@
         - "--exclude=/venv"
     tags: [ rsync ]
 
-  - pip:
+  - name: Create virtualenv and install packages
+    pip:
       requirements: /srv/reference/requirements.txt
       virtualenv: /srv/reference/venv
       virtualenv_command: /usr/local/bin/python3.9 -m venv
@@ -60,46 +61,47 @@
     command: "chmod 755 /srv/reference"
     tags: [ perm ]
 
-  - name: Create a symbolic link to XML files
-    file:
-      src: /nfs/references
-      dest: /srv/reference/consumer/files
-      state: link
-    tags: [ sym-link ]
+#  - name: Create a symbolic link to XML files
+#    file:
+#      src: /nfs/references
+#      dest: /srv/reference/consumer/files
+#      state: link
+#    tags: [ sym-link ]
 
-#  - name: Get running processes
-#    shell: "sudo kill $(ps -ef | grep -v grep | grep -w consumer | awk '{print $2}')"
-#    register: running_processes
-#    ignore_errors: yes
-#    tags: [ restart ]
-#
-#  - name: Kill running processes
-#    shell: "kill {{ item }}"
-#    with_items: "{{ running_processes.stdout_lines }}"
-#    tags: [ restart ]
-#
-#  - wait_for:
-#      path: "/proc/{{ item }}/status"
-#      state: absent
-#    with_items: "{{ running_processes.stdout_lines }}"
-#    ignore_errors: yes
-#    register: killed_processes
-#    tags: [ restart ]
-#
-#  - name: Force kill stuck processes
-#    shell: "kill -9 {{ item }}"
-#    with_items: "{{ killed_processes.results | select('failed') | map(attribute='item') | list }}"
-#    tags: [ restart ]
-#
-#  - wait_for:
-#      path: "/proc/{{ item }}/status"
-#      state: absent
-#    with_items: "{{ running_processes.stdout_lines }}"
-#    ignore_errors: yes
-#    tags: [ restart ]
-#
-#  - name: Run consumer service
-#    shell:
-#      chdir: /srv
-#      cmd: ENVIRONMENT=PRODUCTION nohup /usr/local/bin/python3.7 -m sequence_search.consumer &> /var/log/gunicorn/access_log &
-#    tags: [ restart, quick ]
+  - name: Get running processes
+    shell: "sudo kill $(ps -ef | grep -v grep | grep -w 'python -m consumer' | awk '{print $2}')"
+    register: running_processes
+    ignore_errors: yes
+    tags: [ restart ]
+
+  - name: Kill running processes
+    shell: "kill {{ item }}"
+    with_items: "{{ running_processes.stdout_lines }}"
+    tags: [ restart ]
+
+  - wait_for:
+      path: "/proc/{{ item }}/status"
+      state: absent
+    with_items: "{{ running_processes.stdout_lines }}"
+    ignore_errors: yes
+    register: killed_processes
+    tags: [ restart ]
+
+  - name: Force kill stuck processes
+    shell: "kill -9 {{ item }}"
+    with_items: "{{ killed_processes.results | select('failed') | map(attribute='item') | list }}"
+    tags: [ restart ]
+
+  - wait_for:
+      path: "/proc/{{ item }}/status"
+      state: absent
+    with_items: "{{ running_processes.stdout_lines }}"
+    ignore_errors: yes
+    tags: [ restart ]
+
+  - name: Run consumer service
+    shell: |
+      source /srv/reference/venv/bin/activate
+      cd /srv/reference
+      ENVIRONMENT=PRODUCTION nohup python -m consumer &> /var/log/reference/access_log &
+    tags: [ restart ]
