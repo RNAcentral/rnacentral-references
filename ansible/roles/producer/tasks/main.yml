@@ -58,7 +58,7 @@
     tags: [ perm ]
 
   - name: Chmod aiohttp code
-    command: "chmod 755 /srv/reference"
+    command: "chmod -R 754 /srv/reference"
     tags: [ perm ]
 
   - name: Get running processes
