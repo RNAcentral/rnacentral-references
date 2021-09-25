@@ -1,0 +1,13 @@
+- hosts: producer
+  gather_facts: Yes
+  remote_user: centos
+  become: true
+  become_method: sudo
+  vars:
+    ansible_ssh_private_key_file: "ssh/sequence_search_rsa"
+  tasks:
+    - name: Drop the database and re-create it
+      shell: |
+        source /srv/reference/venv/bin/activate
+        cd /srv/reference
+        ENVIRONMENT=PRODUCTION python -m database
