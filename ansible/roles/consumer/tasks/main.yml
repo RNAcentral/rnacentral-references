@@ -3,6 +3,19 @@
     yum:
       name:
       - libpq-devel
+      - sqlite-devel
+    tags: [ install-deps ]
+
+  - name: Install Python 3.9
+    shell: |
+      curl -OL https://www.python.org/ftp/python/3.9.7/Python-3.9.7.tgz
+      tar -xzf Python-3.9.7.tgz
+      cd Python-3.9.7
+      ./configure --enable-optimizations
+      make altinstall
+    args:
+      creates: /usr/local/bin/python3.9
+    tags: [ install-deps ]
 
   - name: Delete reference directory
     file:
@@ -35,7 +48,7 @@
   - pip:
       requirements: /srv/reference/requirements.txt
       virtualenv: /srv/reference/venv
-      virtualenv_command: /usr/local/bin/python3.7 -m venv
+      virtualenv_command: /usr/local/bin/python3.9 -m venv
     tags: [ pip ]
 
   - name: Chown reference code
