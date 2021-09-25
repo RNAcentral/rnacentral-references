@@ -61,12 +61,12 @@
     command: "chmod -R 754 /srv/reference"
     tags: [ perm ]
 
-#  - name: Create a symbolic link to XML files
-#    file:
-#      src: /nfs/references
-#      dest: /srv/reference/consumer/files
-#      state: link
-#    tags: [ sym-link ]
+  - name: Create a symbolic link to XML files
+    file:
+      src: /nfs/references
+      dest: /srv/reference/consumer/files
+      state: link
+    tags: [ sym-link ]
 
   - name: Get running processes
     shell: "sudo kill $(ps -ef | grep -v grep | grep -w 'python -m consumer' | awk '{print $2}')"
