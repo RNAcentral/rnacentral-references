@@ -3,6 +3,19 @@
     yum:
       name:
       - libpq-devel
+      - sqlite-devel
+    tags: [ install-deps ]
+
+  - name: Install Python 3.9
+    shell: |
+      curl -OL https://www.python.org/ftp/python/3.9.7/Python-3.9.7.tgz
+      tar -xzf Python-3.9.7.tgz
+      cd Python-3.9.7
+      ./configure --enable-optimizations
+      make altinstall
+    args:
+      creates: /usr/local/bin/python3.9
+    tags: [ install-deps ]
 
   - name: Delete reference directory
     file:
@@ -32,10 +45,11 @@
         - "--exclude=/venv"
     tags: [ rsync ]
 
-  - pip:
+  - name: Create virtualenv and install packages
+    pip:
       requirements: /srv/reference/requirements.txt
       virtualenv: /srv/reference/venv
-      virtualenv_command: /usr/local/bin/python3.7 -m venv
+      virtualenv_command: /usr/local/bin/python3.9 -m venv
     tags: [ pip ]
 
   - name: Chown reference code
@@ -47,40 +61,41 @@
     command: "chmod 755 /srv/reference"
     tags: [ perm ]
 
-#
-#  - name: Get running processes
-#    shell: "sudo kill $(ps -ef | grep -v grep | grep -w consumer | awk '{print $2}')"
-#    register: running_processes
-#    ignore_errors: yes
-#    tags: [ restart ]
-#
-#  - name: Kill running processes
-#    shell: "kill {{ item }}"
-#    with_items: "{{ running_processes.stdout_lines }}"
-#    tags: [ restart ]
-#
-#  - wait_for:
-#      path: "/proc/{{ item }}/status"
-#      state: absent
-#    with_items: "{{ running_processes.stdout_lines }}"
-#    ignore_errors: yes
-#    register: killed_processes
-#    tags: [ restart ]
-#
-#  - name: Force kill stuck processes
-#    shell: "kill -9 {{ item }}"
-#    with_items: "{{ killed_processes.results | select('failed') | map(attribute='item') | list }}"
-#    tags: [ restart ]
-#
-#  - wait_for:
-#      path: "/proc/{{ item }}/status"
-#      state: absent
-#    with_items: "{{ running_processes.stdout_lines }}"
-#    ignore_errors: yes
-#    tags: [ restart ]
-#
-#  - name: Run consumer service
-#    shell:
-#      chdir: /srv
-#      cmd: ENVIRONMENT=PRODUCTION nohup /usr/local/bin/python3.7 -m sequence_search.consumer &> /var/log/gunicorn/access_log &
-#    tags: [ restart, quick ]
+  - name: Get running processes
+    shell: "sudo kill $(ps -ef | grep -v grep | grep -w 'python -m producer' | awk '{print $2}')"
+    register: running_processes
+    ignore_errors: yes
+    tags: [ restart ]
+
+  - name: Kill running processes
+    shell: "kill {{ item }}"
+    with_items: "{{ running_processes.stdout_lines }}"
+    tags: [ restart ]
+
+  - wait_for:
+      path: "/proc/{{ item }}/status"
+      state: absent
+    with_items: "{{ running_processes.stdout_lines }}"
+    ignore_errors: yes
+    register: killed_processes
+    tags: [ restart ]
+
+  - name: Force kill stuck processes
+    shell: "kill -9 {{ item }}"
+    with_items: "{{ killed_processes.results | select('failed') | map(attribute='item') | list }}"
+    tags: [ restart ]
+
+  - wait_for:
+      path: "/proc/{{ item }}/status"
+      state: absent
+    with_items: "{{ running_processes.stdout_lines }}"
+    ignore_errors: yes
+    tags: [ restart ]
+
+  - name: Run producer service
+    shell: |
+      source /srv/reference/venv/bin/activate
+      mkdir -p /var/log/reference
+      cd /srv/reference
+      ENVIRONMENT=PRODUCTION nohup python -m producer &> /var/log/reference/access_log &
+    tags: [ restart ]
