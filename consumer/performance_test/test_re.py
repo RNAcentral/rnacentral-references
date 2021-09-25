@@ -16,11 +16,13 @@ def test():
     for file in xml_files:
         with open(file, "r") as f:
             read_data = f.read()
-            regex = r"[\s*>]" + re.escape(job_id) + "[\s*<.,?!]"
+            regex = r"(^|\s)" + re.escape(job_id) + "($|[\s.,?!])"
             if re.search(regex, read_data.lower()):
                 pass
 
 
 if __name__ == "__main__":
-    # re.search: ~ 0.38
+    # re.search: ~ 0.65
+    # works for "mir-122" " mir-122 " "mir-122." "mir-122," "mir-122?" "mir-122!"
+    # doesn't work for "hsa-mir-122" "mir-122x"
     print((timeit.timeit("test()", setup="from __main__ import test", number=10))/10)
