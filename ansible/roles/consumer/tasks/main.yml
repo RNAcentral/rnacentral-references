@@ -102,6 +102,7 @@
   - name: Run consumer service
     shell: |
       source /srv/reference/venv/bin/activate
+      mkdir -p /var/log/reference
       cd /srv/reference
       ENVIRONMENT=PRODUCTION nohup python -m consumer &> /var/log/reference/access_log &
     tags: [ restart ]
