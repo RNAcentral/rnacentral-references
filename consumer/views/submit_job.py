@@ -17,7 +17,7 @@ import re
 from aiohttp import web
 from aiojobs.aiohttp import spawn
 
-from consumer.settings import PROJECT_ROOT
+from consumer.settings import path_to_xml_files
 from database.consumers import get_ip, set_consumer_status_and_job_id
 from database.job import set_job_status
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
@@ -66,9 +66,9 @@ async def seek_references(engine, job_id, consumer_ip):
     """
     results = []
     start = datetime.datetime.now()
+    regex = r"(^|\s)" + re.escape(job_id) + "($|[\s.,?])"
 
     # list of xml files
-    path_to_xml_files = PROJECT_ROOT.parent / 'consumer' / 'files'
     xml_files = [file for file in path_to_xml_files.glob('*.xml')]
 
     # read each of the xml files present in the files folder
@@ -77,7 +77,7 @@ async def seek_references(engine, job_id, consumer_ip):
             read_data = f.read()
 
             # check if the file contains the job_id
-            if re.search(job_id, read_data.lower()):
+            if re.search(regex, read_data.lower()):
                 root = ET.fromstring(read_data)
 
                 # check which article has the job_id
