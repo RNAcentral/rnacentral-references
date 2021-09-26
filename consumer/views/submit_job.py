@@ -82,16 +82,92 @@ async def seek_references(engine, job_id, consumer_ip):
 
                 # check which article has the job_id
                 for article in root.findall("./article"):
-                    found_job_id = [
-                        element for element in article.iter()
-                        if element.text and re.search(job_id, element.text.lower())
-                    ]
+                    get_abstract = article.findall(".//abstract//p")
+                    get_body = article.findall(".//body//p")
+                    abstract_and_body = get_abstract + get_body
+                    text = [item.text for item in abstract_and_body if item.text]
 
-                    # check if job_id is in title, abstract or body
-                    if found_job_id:
-                        get_id = get_ids_from_article(article, job_id)
-                        if get_id:
-                            results.append(get_id)
+                    if re.search(regex, ' '.join(text).lower()):
+                        response = {}
+
+                        # check if the abstract has the job_id
+                        for item in get_abstract:
+                            if 'abstract' not in response:
+                                try:
+                                    item_blob = TextBlob(item.text)
+                                    for sentence in item_blob.sentences:
+                                        if re.search(regex, sentence.lower()):
+                                            response["abstract"] = sentence.raw
+                                            break
+                                except TypeError:
+                                    pass
+
+                        # check if the body has the job_id
+                        for item in get_body:
+                            if 'body' not in response:
+                                try:
+                                    item_blob = TextBlob(item.text)
+                                    for sentence in item_blob.sentences:
+                                        if re.search(regex, sentence.lower()):
+                                            response["body"] = sentence.raw
+                                            break
+                                except TypeError:
+                                    pass
+
+                        # get title
+                        get_title = article.find("./front/article-meta/title-group/article-title")
+                        title = ""
+                        response["title_contains_value"] = False
+
+                        # check if the title has the job_id
+                        try:
+                            title_blob = TextBlob(get_title.text)
+                            for sentence in title_blob.sentences:
+                                title = title + sentence.raw + " "
+                                if re.search(regex, sentence.lower()):
+                                    response["title_contains_value"] = True
+                        except TypeError:
+                            pass
+
+                        response["title"] = title
+
+                        # get authors of the article
+                        get_contrib_group = article.find("./front/article-meta/contrib-group")
+                        response['author'] = ''
+
+                        try:
+                            get_authors = get_contrib_group.findall(".//name")
+                            authors = []
+                            for author in get_authors:
+                                surname = author.find('surname').text
+                                given_names = author.find('given-names').text
+                                authors.append(surname + ", " + given_names)
+                            response["author"] = '; '.join(authors)
+                        except AttributeError:
+                            pass
+
+                        # get pmid and doi
+                        article_meta = article.findall("./front/article-meta/article-id")
+                        response['doi'] = ''
+                        response['pmid'] = ''
+
+                        for item in article_meta:
+                            if item.attrib == {'pub-id-type': 'doi'}:
+                                response["doi"] = item.text
+                            elif item.attrib == {'pub-id-type': 'pmid'}:
+                                response["pmid"] = item.text
+
+                        # add job_id
+                        response["job_id"] = job_id
+
+                        # response must have abstract and body
+                        if 'abstract' not in response:
+                            response['abstract'] = ''
+
+                        if 'body' not in response:
+                            response['body'] = ''
+
+                        results.append(response)
 
     # save results in DB
     if results:
@@ -109,101 +185,3 @@ async def seek_references(engine, job_id, consumer_ip):
 
     # update consumer
     await set_consumer_status_and_job_id(engine, consumer_ip, CONSUMER_STATUS_CHOICES.available, "")
-
-
-def contains_value(value, sentence):
-    return f' {value} ' in f' {sentence} ' or f' {value},' in f' {sentence} ' or f' {value}.' in f' {sentence} '
-
-
-def get_ids_from_article(article, value):
-    """
-    Search for the value in three different places: title, abstract, and body.
-    :param article: article that will be used in the search
-    :param value: string to search (job_id)
-    :return: sentences of the article if the value is found, otherwise returns None
-    """
-    get_abstract = article.findall(".//abstract//p")
-    get_body = article.findall(".//body//p")  # TODO: Maybe remove text from the intro?
-    response = {}
-    pattern_found = False
-
-    # It is possible that the desired value is in several different sentences within the abstract or the body.
-    # Just take the first one for now.
-    for item in get_abstract:
-        if 'abstract' not in response:
-            try:
-                item_blob = TextBlob(item.text)
-                for sentence in item_blob.sentences:
-                    if contains_value(value, sentence.lower()):
-                        response["abstract"] = sentence.raw
-                        pattern_found = True
-                        break
-            except TypeError:
-                pass
-
-    for item in get_body:
-        if 'body' not in response:
-            try:
-                item_blob = TextBlob(item.text)
-                for sentence in item_blob.sentences:
-                    if contains_value(value, sentence.lower()):
-                        response["body"] = sentence.raw
-                        pattern_found = True
-                        break
-            except TypeError:
-                pass
-
-    if pattern_found:
-        # get title
-        get_title = article.find("./front/article-meta/title-group/article-title")
-        title = ""
-        response["title_contains_value"] = False
-
-        try:
-            title_blob = TextBlob(get_title.text)
-            for sentence in title_blob.sentences:
-                title = title + sentence.raw + " "
-                if contains_value(value, sentence.lower()):
-                    response["title_contains_value"] = True
-        except TypeError:
-            pass
-
-        response["title"] = title
-
-        # get authors of the article
-        get_contrib_group = article.find("./front/article-meta/contrib-group")
-        response['author'] = ''
-
-        try:
-            get_authors = get_contrib_group.findall(".//name")
-            authors = []
-            for author in get_authors:
-                surname = author.find('surname').text
-                given_names = author.find('given-names').text
-                authors.append(surname + ", " + given_names)
-            response["author"] = '; '.join(authors)
-        except AttributeError:
-            pass
-
-        # get pmid and doi
-        article_meta = article.findall("./front/article-meta/article-id")
-        response['doi'] = ''
-        response['pmid'] = ''
-
-        for item in article_meta:
-            if item.attrib == {'pub-id-type': 'doi'}:
-                response["doi"] = item.text
-            elif item.attrib == {'pub-id-type': 'pmid'}:
-                response["pmid"] = item.text
-
-        # add job_id
-        response["job_id"] = value
-
-        # response must have abstract and body
-        if 'abstract' not in response:
-            response['abstract'] = ''
-
-        if 'body' not in response:
-            response['body'] = ''
-
-    return response if response else None
