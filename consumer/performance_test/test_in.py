@@ -23,4 +23,5 @@ def test():
 
 if __name__ == "__main__":
     # in: ~ 0.23
+    # finds substring!
     print((timeit.timeit("test()", setup="from __main__ import test", number=10))/10)
