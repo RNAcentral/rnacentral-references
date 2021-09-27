@@ -11,6 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import datetime
+import gzip
 import logging
 import re
 
@@ -69,12 +70,12 @@ async def seek_references(engine, job_id, consumer_ip):
     regex = r"(^|\s)" + re.escape(job_id) + "($|[\s.,?])"
 
     # list of xml files
-    xml_files = [file for file in path_to_xml_files.glob('*.xml')]
+    xml_files = [file for file in path_to_xml_files.glob('*.xml.gz')]
 
     # read each of the xml files present in the files folder
     for file in xml_files:
-        with open(file, "r") as f:
-            read_data = f.read()
+        with gzip.open(file, "rb") as f:
+            read_data = f.read().decode('utf-8')
 
             # check if the file contains the job_id
             if re.search(regex, read_data.lower()):
