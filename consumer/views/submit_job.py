@@ -119,7 +119,7 @@ async def seek_references(engine, job_id, consumer_ip):
                     if re.search(regex, str(sentence.lower())):
                         response["title_contains_value"] = True
 
-                response["title"] = title
+                response["title"] = title.rstrip()
 
                 # check if the abstract has the job_id
                 get_abstract = article.findall(".//abstract//*")
@@ -169,6 +169,9 @@ async def seek_references(engine, job_id, consumer_ip):
 
                 # add job_id
                 response["job_id"] = job_id
+
+                # add pmcid
+                response["pmcid"] = pmcid
 
                 # response must have abstract and body
                 if 'abstract' not in response:

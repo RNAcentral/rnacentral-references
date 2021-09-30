@@ -45,6 +45,7 @@ class SaveResults(DBTestCase):
             'title_contains_value': True,
             'abstract': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
             'body': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
+            'pmcid': '123456789',
             'pmid': '123456789',
             'doi': '12.3456/7890-9999-9-9',
             'job_id': self.job_id

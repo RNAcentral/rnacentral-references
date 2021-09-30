@@ -60,6 +60,7 @@ class JobResultsTestCase(AioHTTPTestCase):
                     abstract='',
                     body='Lorem ipsum miR-21 dolor',
                     author='de Tal, Fulano',
+                    pmcid='123456789',
                     pmid='123456789',
                     doi='10.1234/journal.123',
                 )
@@ -83,6 +84,7 @@ class JobResultsTestCase(AioHTTPTestCase):
                 "abstract": "",
                 "body": "Lorem ipsum miR-21 dolor",
                 "author": "de Tal, Fulano",
+                "pmcid": "123456789",
                 "pmid": "123456789",
                 "doi": "10.1234/journal.123"
             }]
