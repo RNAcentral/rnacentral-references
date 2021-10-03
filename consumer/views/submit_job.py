@@ -20,7 +20,7 @@ from aiohttp import web
 from aiojobs.aiohttp import spawn
 
 from database.consumers import get_ip, set_consumer_status_and_job_id
-from database.job import set_job_status
+from database.job import save_hit_count, set_job_status
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
 from database.results import save_results
 from textblob import TextBlob
@@ -91,8 +91,15 @@ async def seek_references(engine, job_id, consumer_ip):
         except ET.ParseError:
             pass
 
-    # get pmcid
-    pmcid_list = [item.find('pmcid').text for item in root.findall("./resultList/result")] if root else None
+    if root:
+        # get pmcid
+        pmcid_list = [item.find('pmcid').text for item in root.findall("./resultList/result")]
+
+        # get and save hitCount
+        hit_count = root.find('hitCount').text
+        await save_hit_count(engine, job_id, int(hit_count))
+    else:
+        pmcid_list = None
 
     if pmcid_list:
         for pmcid in pmcid_list:

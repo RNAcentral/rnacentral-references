@@ -80,6 +80,7 @@ Job = sa.Table(
     sa.Column('status', sa.String(10)),  # choices=JOB_STATUS_CHOICES
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
+    sa.Column('hit_count', sa.Integer, nullable=True),
 )
 
 """Results of a specific Job"""
@@ -135,7 +136,8 @@ async def migrate(env):
                   job_id VARCHAR(100) PRIMARY KEY,
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
-                  status VARCHAR(10))
+                  status VARCHAR(10),
+                  hit_count INTEGER)
             ''')
 
             await connection.execute('''

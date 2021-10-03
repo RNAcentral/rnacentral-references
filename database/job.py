@@ -132,3 +132,22 @@ async def set_job_status(engine, job_id, status):
                 raise SQLError("Failed to set_job_status, job_id = %s, status = %s" % (job_id, status)) from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in set_job_status, job_id = %s" % job_id) from e
+
+
+async def save_hit_count(engine, job_id, hit_count):
+    """
+    Function to save hit_count for a job.
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :param status: number of hits
+    :return: None
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                query = sa.text('''UPDATE job SET hit_count=:hit_count WHERE job_id=:job_id''')
+                await connection.execute(query, job_id=job_id, hit_count=hit_count)
+            except Exception as e:
+                raise SQLError("Failed to save_hit_count, job_id = %s" % job_id) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in save_hit_count, job_id = %s" % job_id) from e

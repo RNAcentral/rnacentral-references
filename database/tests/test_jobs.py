@@ -11,10 +11,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import datetime
+import sqlalchemy as sa
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.job import find_job_to_run, save_job, search_performed, set_job_status
+from database.job import find_job_to_run, save_job, save_hit_count, search_performed, set_job_status
 from database.tests.test_base import DBTestCase
 
 
@@ -97,3 +98,32 @@ class SetJobStatusTestCase(DBTestCase):
     async def test_set_job_status_started(self):
         job = await set_job_status(self.app['engine'], 'FOO', JOB_STATUS_CHOICES.started)
         assert job == 'FOO'
+
+
+class SaveHitCountTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+    ENVIRONMENT=TEST python -m unittest database.tests.test_job_chunks.SaveHitCountTestCase
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+        async with self.app['engine'].acquire() as connection:
+            await connection.execute(
+                Job.insert().values(
+                    job_id='FOO',
+                    submitted=datetime.datetime.now(),
+                    status=JOB_STATUS_CHOICES.pending
+                )
+            )
+
+    @unittest_run_loop
+    async def test_save_hit_count(self):
+        await save_hit_count(self.app['engine'], 'foo', 10)
+
+        async with self.app['engine'].acquire() as connection:
+            query = sa.text('''SELECT hit_count FROM job WHERE job_id=:job_id''')
+
+            async for row in await connection.execute(query, job_id='foo'):
+                assert row.id is 10
+                break
