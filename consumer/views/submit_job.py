@@ -93,7 +93,9 @@ async def seek_references(engine, job_id, consumer_ip):
 
     if root:
         # get pmcid
-        pmcid_list = [item.find('pmcid').text for item in root.findall("./resultList/result")]
+        pmcid_list = [
+            item.find('pmcid').text for item in root.findall("./resultList/result") if item.find('pmcid') is not None
+        ]
 
         # get and save hitCount
         hit_count = root.find('hitCount').text
