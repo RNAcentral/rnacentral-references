@@ -3,3 +3,4 @@ venv
 consumer/files/*
 ansible/ssh/*
 ansible/hosts
+.env
