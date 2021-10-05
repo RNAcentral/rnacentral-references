@@ -1,5 +1,5 @@
 """
-Copyright [2009-2019] EMBL-European Bioinformatics Institute
+Copyright [2009-present] EMBL-European Bioinformatics Institute
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -151,3 +151,23 @@ async def save_hit_count(engine, job_id, hit_count):
                 raise SQLError("Failed to save_hit_count, job_id = %s" % job_id) from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in save_hit_count, job_id = %s" % job_id) from e
+
+
+async def get_jobs(engine):
+    """
+    Function to get job ids.
+    :param engine: params to connect to the db
+    :return: list of ids
+    """
+    try:
+        async with engine.acquire() as connection:
+            results = []
+            sql_query = sa.select([Job.c.job_id]).select_from(Job)
+            try:
+                async for row in connection.execute(sql_query):
+                    results.append(row.job_id)
+                return results
+            except Exception as e:
+                raise SQLError("Failed to get jobs") from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_jobs()") from e
