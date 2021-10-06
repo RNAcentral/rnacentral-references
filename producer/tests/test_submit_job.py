@@ -37,7 +37,7 @@ class SubmitJobTestCase(AioHTTPTestCase):
 
     @unittest_run_loop
     async def test_submit_job_post_success(self):
-        data = json.dumps({"id": "FOO_BAR"})
+        data = json.dumps({"id": "FOO_BAR", "urs_taxid": "URS123"})
         async with self.client.post(path='/api/submit-job', data=data) as response:
             assert response.status == 201
             text = await response.text()
@@ -49,4 +49,4 @@ class SubmitJobTestCase(AioHTTPTestCase):
         async with self.client.post(path='/api/submit-job', data=data) as response:
             assert response.status == 400
             text = await response.text()
-            assert text == '{"id": "Not found"}'
+            assert text == '{"error": "id or urs_taxid not found"}'
