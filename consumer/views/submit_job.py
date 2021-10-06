@@ -74,7 +74,7 @@ async def seek_references(engine, job_id, consumer_ip):
     start = datetime.datetime.now()
     regex = r"(^|\s)" + re.escape(job_id) + "($|[\s.,?])"
     europe_pmc = "https://www.ebi.ac.uk/europepmc/webservices/rest/"
-    query = 'search?query="' + job_id + '"&pageSize=500'
+    query = f'search?query=("{job_id}" AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR)&pageSize=500&resultType=idlist'
     articles = None
 
     try:
