@@ -65,28 +65,30 @@ async def search_performed(engine, value):
         raise DatabaseConnectionError("Failed to open DB connection in search_performed() for id = %s" % value) from e
 
 
-async def save_job(engine, value):
+async def save_job(engine, job_id, urs_taxid):
     """
     Save metadata in the database
     :param engine: params to connect to the db
-    :param value: the string that will be saved
-    :return: string saved in DB
+    :param job_id: the string that will be searched
+    :param urs_taxid: urs_taxid associated with job_id
+    :return: job_id
     """
     try:
         async with engine.acquire() as connection:
             try:
                 await connection.execute(
                     Job.insert().values(
-                        job_id=value,
+                        job_id=job_id,
+                        urs_taxid=urs_taxid,
                         submitted=datetime.datetime.now(),
                         status=JOB_STATUS_CHOICES.pending
                     )
                 )
-                return value
+                return job_id
             except Exception as e:
-                raise SQLError("Failed to save job for id = %s to the database" % value) from e
+                raise SQLError("Failed to save job for id = %s to the database" % job_id) from e
     except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in save_job() for id %s" % value) from e
+        raise DatabaseConnectionError("Failed to open DB connection in save_job() for id %s" % job_id) from e
 
 
 async def set_job_status(engine, job_id, status):

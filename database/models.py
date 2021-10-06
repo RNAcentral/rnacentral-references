@@ -77,6 +77,7 @@ Job = sa.Table(
     'job',
     metadata,
     sa.Column('job_id', sa.String(100), primary_key=True),
+    sa.Column('urs_taxid', sa.String(30)),
     sa.Column('status', sa.String(10)),  # choices=JOB_STATUS_CHOICES
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
@@ -134,6 +135,7 @@ async def migrate(env):
             await connection.execute('''
                 CREATE TABLE job (
                   job_id VARCHAR(100) PRIMARY KEY,
+                  urs_taxid VARCHAR(30),
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
                   status VARCHAR(10),

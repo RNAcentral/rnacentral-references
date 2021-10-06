@@ -21,17 +21,17 @@ from database.job import save_job, search_performed
 async def submit_job(request):
     """
     Function to start searching for ids. Run this command to test:
-    curl -H "Content-Type:application/json" -d "{\"id\": \"CFEOM1\"}" localhost:8080/api/submit-job
+    curl -H "Content-Type:application/json" -d "{\"id\": \"UCA1:4\", \"urs_taxid\": \"URS00008C02AC_9606\"}" localhost:8080/api/submit-job
     :param request: used to get the params to connect to the db
     :return: json with job_id
     """
     data = await request.json()
 
     try:
-        # converts all uppercase characters to lowercase
-        data['id'] = data['id'].lower()
+        data['id'] = data['id'].lower()  # converts all uppercase characters to lowercase
+        data['urs_taxid'] = data['urs_taxid']  # just checking if there is urs_taxid
     except KeyError:
-        return web.json_response({"id": "Not found"}, status=400)
+        return web.json_response({"error": "id or urs_taxid not found"}, status=400)
 
     # check if this id has already been searched
     job = await search_performed(request.app['engine'], data['id'])
@@ -41,6 +41,6 @@ async def submit_job(request):
         job_id = job['job_id']
     else:
         # save metadata about this job to the database
-        job_id = await save_job(request.app['engine'], data['id'])
+        job_id = await save_job(request.app['engine'], data['id'], data['urs_taxid'])
 
     return web.json_response({"job_id": job_id}, status=201)
