@@ -50,14 +50,15 @@ async def search_index():
         entries = ET.SubElement(database, "entries")
 
         for job in job_ids:
-            results = await get_job_results(engine, job)
+            results = await get_job_results(engine, job["job_id"])
 
             # iterate over the results to complete the xml
             for item in results:
-                entry = ET.SubElement(entries, "entry", id=item['pmcid'])
+                entry = ET.SubElement(entries, "entry", id=job["urs_taxid"] + "_" + item['pmcid'])
                 additional_fields = ET.SubElement(entry, "additional_fields")
                 ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
-                ET.SubElement(additional_fields, "field", name="job_id").text = job
+                ET.SubElement(additional_fields, "field", name="job_id").text = job["job_id"]
+                ET.SubElement(additional_fields, "field", name="urs_taxid").text = job["urs_taxid"]
                 ET.SubElement(additional_fields, "field", name="title").text = item['title']
                 ET.SubElement(additional_fields, "field", name="title_contains_value").text = item['title_contains_value']
                 ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
