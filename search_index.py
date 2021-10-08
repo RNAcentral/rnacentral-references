@@ -60,7 +60,7 @@ async def search_index():
                 ET.SubElement(additional_fields, "field", name="job_id").text = job["job_id"]
                 ET.SubElement(additional_fields, "field", name="urs_taxid").text = job["urs_taxid"]
                 ET.SubElement(additional_fields, "field", name="title").text = item['title']
-                ET.SubElement(additional_fields, "field", name="title_contains_value").text = item['title_contains_value']
+                ET.SubElement(additional_fields, "field", name="title_contains_value").text = str(item['title_contains_value'])
                 ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
                 ET.SubElement(additional_fields, "field", name="body").text = item['body']
                 ET.SubElement(additional_fields, "field", name="author").text = item['author']
