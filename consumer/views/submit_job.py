@@ -71,6 +71,7 @@ async def seek_references(engine, job_id, consumer_ip):
     :return:
     """
     results = []
+    hit_count = "0"
     start = datetime.datetime.now()
     regex = r"(^|\s)" + re.escape(job_id.split(":")[0]) + "($|[\s.,?])"
     europe_pmc = "https://www.ebi.ac.uk/europepmc/webservices/rest/"
@@ -213,11 +214,25 @@ async def seek_references(engine, job_id, consumer_ip):
         await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.success)
 
     elif pmcid_list and not results:
+        # if there is pmcid, there must be results
         logging.debug("Could not find job_id for {}.".format(pmcid_list))
 
-    elif not pmcid_list:
         # set job status
         await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.error)
+
+    elif not pmcid_list and int(hit_count) > 0:
+        # if pmcid is not found, but hit_count is greater than 0, then something is wrong
+        logging.debug("Could not get pmcid for job_id {}.".format(job_id))
+
+        # set job status
+        await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.error)
+
+    elif not pmcid_list and int(hit_count) == 0:
+        # if pmcid is not found and hit_count is 0, so no articles were actually found
+        logging.debug("No results found for job_id {}.".format(job_id))
+
+        # set job status
+        await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.success)
 
     # update consumer
     await set_consumer_status_and_job_id(engine, consumer_ip, CONSUMER_STATUS_CHOICES.available, "")
