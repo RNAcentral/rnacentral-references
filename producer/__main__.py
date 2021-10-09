@@ -53,6 +53,8 @@ async def check_jobs_and_consumers(app):
                 consumer_port=consumer.port,
                 job_id=job[0]
             )
+            # sleep to avoid exceeding rate limit
+            await asyncio.sleep(0.5)
 
 
 async def create_consumer_scheduler(app):
