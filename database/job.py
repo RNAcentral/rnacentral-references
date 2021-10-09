@@ -30,14 +30,16 @@ async def find_job_to_run(engine):
             try:
                 query = (sa.select([Job.c.job_id, Job.c.status, Job.c.submitted])
                          .select_from(Job)
-                         .where(Job.c.status == JOB_STATUS_CHOICES.pending))
+                         .where(Job.c.status == JOB_STATUS_CHOICES.pending)
+                         .order_by(Job.c.submitted)
+                         .limit(8))
 
-                # get jobs
+                # get the eight oldest jobs
                 output = []
                 async for row in connection.execute(query):
                     output.append((row.job_id, row.submitted))
 
-                return sorted(output, key=itemgetter(1))  # sort by date
+                return output
 
             except Exception as e:
                 raise SQLError("Failed to find jobs in find_job_to_run()") from e
