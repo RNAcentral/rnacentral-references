@@ -44,6 +44,9 @@ async def search_index():
         # create directory to store xml files, if necessary
         path_to_xml_files.mkdir(parents=True, exist_ok=True)
 
+        # start entry_count
+        entry_count = 0
+
         # start to create a XML file
         database = ET.Element("database")
         ET.SubElement(database, "name").text = "RNAcentral"
@@ -67,6 +70,11 @@ async def search_index():
                 ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
                 ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
                 ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
+
+                # update entry_count
+                entry_count += 1
+
+        ET.SubElement(database, "entry_count").text = str(entry_count)
 
         # save the file
         tree = ET.ElementTree(database)
