@@ -120,17 +120,16 @@ async def seek_references(engine, job_id, consumer_ip):
 
                 # get title
                 get_title = article.find("./front/article-meta/title-group/article-title")
-                title = ""
-                response["title_contains_value"] = False
+                title = ''.join(get_title.itertext()).strip()
+                response["title"] = title
 
                 # check if the title has the job_id
-                title_blob = TextBlob(get_title.text)
+                response["title_contains_value"] = False
+                title_blob = TextBlob(title)
                 for sentence in title_blob.sentences:
-                    title = title + sentence.raw + " "
                     if re.search(regex, str(sentence.lower())):
                         response["title_contains_value"] = True
-
-                response["title"] = title.rstrip()
+                        break
 
                 # check if the abstract has the job_id
                 get_abstract = article.findall(".//abstract//*")
