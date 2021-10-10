@@ -159,9 +159,12 @@ async def seek_references(engine, job_id, consumer_ip):
                     get_authors = get_contrib_group.findall(".//name")
                     authors = []
                     for author in get_authors:
-                        surname = author.find('surname').text
-                        given_names = author.find('given-names').text
-                        authors.append(surname + ", " + given_names)
+                        surname = author.find('surname').text if author.find('surname').text else ''
+                        given_names = author.find('given-names').text if author.find('given-names').text else ''
+                        if surname and given_names:
+                            authors.append(surname + ", " + given_names)
+                        elif surname or given_names:
+                            authors.append(surname + given_names)
                     response["author"] = '; '.join(authors)
                 except AttributeError:
                     pass
