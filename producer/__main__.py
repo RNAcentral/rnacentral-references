@@ -53,8 +53,6 @@ async def check_jobs_and_consumers(app):
                 consumer_port=consumer.port,
                 job_id=job[0]
             )
-            # sleep to avoid exceeding rate limit
-            await asyncio.sleep(0.5)
 
 
 async def create_consumer_scheduler(app):
@@ -69,7 +67,7 @@ async def create_consumer_scheduler(app):
     async def periodic():
         while True:
             loop.create_task(check_jobs_and_consumers(app))
-            await asyncio.sleep(5)
+            await asyncio.sleep(4)
 
     loop = asyncio.get_event_loop()
     loop.create_task(periodic())
