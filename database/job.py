@@ -152,7 +152,7 @@ async def save_hit_count(engine, job_id, hit_count):
                 query = sa.text('''UPDATE job SET hit_count=:hit_count WHERE job_id=:job_id''')
                 await connection.execute(query, job_id=job_id, hit_count=hit_count)
             except Exception as e:
-                raise SQLError("Failed to save_hit_count, job_id = %s" % job_id) from e
+                raise SQLError("Failed to save_hit_count, job_id = %s and hit_count = %s" % (job_id, hit_count)) from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in save_hit_count, job_id = %s" % job_id) from e
 
