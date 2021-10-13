@@ -63,6 +63,8 @@ class JobResultsTestCase(AioHTTPTestCase):
                     pmcid='123456789',
                     pmid='123456789',
                     doi='10.1234/journal.123',
+                    year=2021,
+                    journal='foo'
                 )
             )
 
@@ -86,7 +88,9 @@ class JobResultsTestCase(AioHTTPTestCase):
                 "author": "de Tal, Fulano",
                 "pmcid": "123456789",
                 "pmid": "123456789",
-                "doi": "10.1234/journal.123"
+                "doi": "10.1234/journal.123",
+                "year": 2021,
+                "journal": "foo"
             }]
 
     @unittest_run_loop
