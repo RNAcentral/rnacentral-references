@@ -31,8 +31,7 @@ class SaveJobTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo",
-            urs_taxid="URS123"
+            job_id="foo"
         )
         assert job_id == "foo"
 
@@ -72,8 +71,7 @@ class FindJobTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo",
-            urs_taxid="URS123"
+            job_id="foo"
         )
         find_job = await find_job_to_run(self.app['engine'])
         assert find_job[0][0] == job_id
