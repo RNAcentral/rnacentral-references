@@ -14,7 +14,7 @@ limitations under the License.
 from aiohttp import web
 from aiojobs.aiohttp import atomic
 
-from database.job import save_job, search_performed
+from database.job import save_job, search_performed, search_urs_with_job_id, save_urs_with_job_id
 
 
 @atomic
@@ -36,11 +36,20 @@ async def submit_job(request):
     # check if this id has already been searched
     job = await search_performed(request.app['engine'], data['id'])
 
+    # check if this id already exists with this urs_taxid in the database
+    job_and_urs_taxid = await search_urs_with_job_id(request.app['engine'], data['id'], data['urs_taxid'])
+
     if job:
+        if not job_and_urs_taxid:
+            await save_urs_with_job_id(request.app['engine'], data['id'], data['urs_taxid'])
+
         # get job_id
         job_id = job['job_id']
     else:
         # save metadata about this job to the database
-        job_id = await save_job(request.app['engine'], data['id'], data['urs_taxid'])
+        job_id = await save_job(request.app['engine'], data['id'])
+
+        # save urs_taxid associated with this job_id
+        await save_urs_with_job_id(request.app['engine'], data['id'], data['urs_taxid'])
 
     return web.json_response({"job_id": job_id}, status=201)
