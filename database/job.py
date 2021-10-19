@@ -15,8 +15,7 @@ import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Job, JOB_STATUS_CHOICES
-from operator import itemgetter
+from database.models import Job, JOB_STATUS_CHOICES, Urs
 
 
 async def find_job_to_run(engine):
@@ -67,12 +66,11 @@ async def search_performed(engine, value):
         raise DatabaseConnectionError("Failed to open DB connection in search_performed() for id = %s" % value) from e
 
 
-async def save_job(engine, job_id, urs_taxid):
+async def save_job(engine, job_id):
     """
     Save metadata in the database
     :param engine: params to connect to the db
     :param job_id: the string that will be searched
-    :param urs_taxid: urs_taxid associated with job_id
     :return: job_id
     """
     try:
@@ -81,7 +79,6 @@ async def save_job(engine, job_id, urs_taxid):
                 await connection.execute(
                     Job.insert().values(
                         job_id=job_id,
-                        urs_taxid=urs_taxid,
                         submitted=datetime.datetime.now(),
                         status=JOB_STATUS_CHOICES.pending
                     )
@@ -175,3 +172,47 @@ async def get_jobs(engine):
                 raise SQLError("Failed to get jobs") from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in get_jobs()") from e
+
+
+async def search_urs_with_job_id(engine, job_id, urs_taxid):
+    """
+    Check if this id already exists with this urs_taxid in the database
+    :param engine: params to connect to the db
+    :param job_id: the string to be searched
+    :param urs_taxid: Unique RNA Sequence identifier
+    :return: id
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                sql_query = (sa.select([Urs.c.id])
+                             .select_from(Urs)
+                             .where(Urs.c.job_id == job_id, Urs.c.urs_taxid == urs_taxid))
+                async for row in connection.execute(sql_query):
+                    return {"id": row.id}
+            except Exception as e:
+                raise SQLError("Failed to check if value exists for job_id = %s "
+                               "and urs_taxid = %s" % (job_id, urs_taxid)) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in search_urs_with_job_id() for "
+                                      "job_id = %s and urs_taxid = %s" % (job_id, urs_taxid)) from e
+
+
+async def save_urs_with_job_id(engine, job_id, urs_taxid):
+    """
+    Save job_id and urs_taxid in the database
+    :param engine: params to connect to the db
+    :param job_id: the string that will be searched
+    :param urs_taxid: urs_taxid associated with this job_id
+    :return: true in case of success
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                await connection.execute(Urs.insert().values(job_id=job_id, urs_taxid=urs_taxid))
+                return True
+            except Exception as e:
+                raise SQLError("Failed to save urs for job_id = %s and urs_taxid = %s" % (job_id, urs_taxid)) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in save_urs_with_job_id() for "
+                                      "job_id = %s and urs_taxid = %s" % (job_id, urs_taxid)) from e
