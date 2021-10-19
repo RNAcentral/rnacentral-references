@@ -77,7 +77,6 @@ Job = sa.Table(
     'job',
     metadata,
     sa.Column('job_id', sa.String(100), primary_key=True),
-    sa.Column('urs_taxid', sa.String(30)),
     sa.Column('status', sa.String(10)),  # choices=JOB_STATUS_CHOICES
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
@@ -102,6 +101,15 @@ Result = sa.Table(
     sa.Column('journal', sa.String(100)),
 )
 
+"""URS of the job"""
+Urs = sa.Table(
+    'urs',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('urs_taxid', sa.String(30)),
+    sa.Column('job_id', sa.String(100), sa.ForeignKey('job.job_id')),
+)
+
 # Migrations
 # ----------
 
@@ -123,6 +131,7 @@ async def migrate(env):
     async with engine:
         async with engine.acquire() as connection:
             await connection.execute('DROP TABLE IF EXISTS result')
+            await connection.execute('DROP TABLE IF EXISTS urs')
             await connection.execute('DROP TABLE IF EXISTS job')
             await connection.execute('DROP TABLE IF EXISTS consumer')
 
@@ -137,7 +146,6 @@ async def migrate(env):
             await connection.execute('''
                 CREATE TABLE job (
                   job_id VARCHAR(100) PRIMARY KEY,
-                  urs_taxid VARCHAR(30),
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
                   status VARCHAR(10),
@@ -161,4 +169,14 @@ async def migrate(env):
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
+            await connection.execute('''
+                CREATE TABLE urs (
+                  id SERIAL PRIMARY KEY,
+                  urs_taxid VARCHAR(30),
+                  job_id VARCHAR(100),
+                  FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
+                  CONSTRAINT urs_job UNIQUE (urs_taxid, job_id))
+            ''')
+
             await connection.execute('''CREATE INDEX on result (job_id)''')
+            await connection.execute('''CREATE INDEX on urs (job_id)''')
