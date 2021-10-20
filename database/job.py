@@ -158,15 +158,14 @@ async def get_jobs(engine):
     """
     Function to get job ids.
     :param engine: params to connect to the db
-    :return: list of dicts containing job_id and urs_taxid
+    :return: list of jobs
     """
     try:
         async with engine.acquire() as connection:
             results = []
-            sql_query = sa.select([Job.c.job_id, Job.c.urs_taxid]).select_from(Job)
             try:
-                async for row in connection.execute(sql_query):
-                    results.append({"job_id": row.job_id, "urs_taxid": row.urs_taxid})
+                async for row in connection.execute(sa.select([Job.c.job_id]).select_from(Job)):
+                    results.append(row.job_id)
                 return results
             except Exception as e:
                 raise SQLError("Failed to get jobs") from e
