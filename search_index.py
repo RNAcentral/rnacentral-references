@@ -18,7 +18,7 @@ import xml.etree.cElementTree as ET
 from aiopg.sa import create_engine
 from dotenv import load_dotenv
 
-from database.job import get_jobs
+from database.job import get_jobs, get_urs
 from database.results import get_job_results
 from producer.settings import path_to_xml_files
 
@@ -53,26 +53,31 @@ async def search_index():
         entries = ET.SubElement(database, "entries")
 
         for job in job_ids:
-            results = await get_job_results(engine, job["job_id"])
+            # get a list of URS associated with this job_id
+            urs_list = await get_urs(engine, job)
 
-            # iterate over the results to complete the xml
-            for item in results:
-                entry = ET.SubElement(entries, "entry", id=job["urs_taxid"] + "_" + item['pmcid'])
-                additional_fields = ET.SubElement(entry, "additional_fields")
-                ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
-                ET.SubElement(additional_fields, "field", name="job_id").text = job["job_id"]
-                ET.SubElement(additional_fields, "field", name="urs_taxid").text = job["urs_taxid"]
-                ET.SubElement(additional_fields, "field", name="title").text = item['title']
-                ET.SubElement(additional_fields, "field", name="title_contains_value").text = str(item['title_contains_value'])
-                ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
-                ET.SubElement(additional_fields, "field", name="body").text = item['body']
-                ET.SubElement(additional_fields, "field", name="author").text = item['author']
-                ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
-                ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
-                ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
+            # get results
+            results = await get_job_results(engine, job)
 
-                # update entry_count
-                entry_count += 1
+            for urs in urs_list:
+                # iterate over the results to complete the xml
+                for item in results:
+                    entry = ET.SubElement(entries, "entry", id=urs + "_" + str(entry_count))
+                    additional_fields = ET.SubElement(entry, "additional_fields")
+                    ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
+                    ET.SubElement(additional_fields, "field", name="job_id").text = job
+                    ET.SubElement(additional_fields, "field", name="urs_taxid").text = urs
+                    ET.SubElement(additional_fields, "field", name="title").text = item['title']
+                    ET.SubElement(additional_fields, "field", name="title_contains_value").text = str(item['title_contains_value'])
+                    ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
+                    ET.SubElement(additional_fields, "field", name="body").text = item['body']
+                    ET.SubElement(additional_fields, "field", name="author").text = item['author']
+                    ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
+                    ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
+                    ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
+
+                    # update entry_count
+                    entry_count += 1
 
         ET.SubElement(database, "entry_count").text = str(entry_count)
 
