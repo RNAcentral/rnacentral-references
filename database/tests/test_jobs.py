@@ -15,7 +15,8 @@ import sqlalchemy as sa
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.job import find_job_to_run, save_job, save_hit_count, search_performed, set_job_status
+from database.job import find_job_to_run, save_job, save_hit_count, search_performed, set_job_status, \
+    save_urs_with_job_id, search_urs_with_job_id
 from database.tests.test_base import DBTestCase
 
 
@@ -127,3 +128,28 @@ class SaveHitCountTestCase(DBTestCase):
             async for row in await connection.execute(query, job_id='foo'):
                 assert row.id is 10
                 break
+
+
+class SaveAndSearchUrsAndJobTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.SaveAndSearchUrsAndJobTestCase
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+    @unittest_run_loop
+    async def test_save_job(self):
+        job_id = await save_job(
+            self.app['engine'],
+            job_id="foo"
+        )
+
+        await save_urs_with_job_id(
+            self.app['engine'],
+            job_id=job_id,
+            urs_taxid="URS1234567890_1234"
+        )
+
+        find_job_and_urs = await search_urs_with_job_id(self.app['engine'], "foo", "URS1234567890_1234")
+        assert find_job_and_urs is not None
