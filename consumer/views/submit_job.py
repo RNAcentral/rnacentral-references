@@ -233,13 +233,19 @@ async def seek_references(engine, job_id, consumer_ip):
                         response['abstract'] = ''
 
                     if 'body' not in response:
-                        new_regex = r"([^.]*?" + re.escape(job_id.split(":")[0]) + "[^.]*\.)"
-                        last_chance = re.findall(new_regex, get_article.lower())
-                        if last_chance:
-                            response['body'] = last_chance[0] + " (Exact location not found)"
-                        else:
-                            logging.debug("Job_id not found for pmcid {}.".format(pmcid))
-                            response['body'] = ''
+                        # check if there is a floats-group section
+                        tables_and_fig = article.findall(".//floats-group//*")
+                        for item in tables_and_fig:
+                            if 'body' not in response and item.text:
+                                item_blob = TextBlob(item.text)
+                                for sentence in item_blob.sentences:
+                                    if re.search(regex, str(sentence.lower())):
+                                        response["body"] = sentence.raw + " (Id found in an image or table)"
+                                        break
+
+                    if 'body' not in response:
+                        logging.debug("Job_id not found for pmcid {}.".format(pmcid))
+                        response['body'] = ''
 
                     results.append(response)
 
