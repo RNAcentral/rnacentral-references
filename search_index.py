@@ -40,7 +40,6 @@ async def search_index():
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
         # get jobs
         job_ids = await get_jobs(engine)
-        job_ids = [job for job in job_ids if not job.startswith('rf')]
 
         # create directory to store xml files, if necessary
         path_to_xml_files.mkdir(parents=True, exist_ok=True)
@@ -71,7 +70,9 @@ async def search_index():
                         ET.SubElement(additional_fields, "field", name="title").text = results[0]['title']
                         ET.SubElement(additional_fields, "field", name="title_value").text = str(results[0]['title_value'])
                         ET.SubElement(additional_fields, "field", name="abstract").text = results[0]['abstract']
+                        ET.SubElement(additional_fields, "field", name="abstract_value").text = str(results[0]['abstract_value'])
                         ET.SubElement(additional_fields, "field", name="body").text = results[0]['body']
+                        ET.SubElement(additional_fields, "field", name="body_value").text = str(results[0]['body_value'])
                         ET.SubElement(additional_fields, "field", name="author").text = results[0]['author']
                         ET.SubElement(additional_fields, "field", name="pmcid").text = results[0]['pmcid']
                         ET.SubElement(additional_fields, "field", name="pmid").text = results[0]['pmid']
