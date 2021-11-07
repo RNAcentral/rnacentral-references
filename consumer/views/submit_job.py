@@ -155,6 +155,7 @@ async def seek_references(engine, job_id, consumer_ip):
                             break
 
                     # check if the abstract has the job_id
+                    response["abstract_value"] = False
                     get_abstract = article.findall(".//abstract//*")
                     for item in get_abstract:
                         if 'abstract' not in response and item.text:
@@ -162,9 +163,11 @@ async def seek_references(engine, job_id, consumer_ip):
                             for sentence in item_blob.sentences:
                                 if re.search(regex, str(sentence.lower())):
                                     response["abstract"] = sentence.raw
+                                    response["abstract_value"] = True
                                     break
 
                     # check if the body has the job_id
+                    response["body_value"] = False
                     get_body_p = article.findall(".//body//*")
                     for item in get_body_p:
                         if 'body' not in response and item.text:
@@ -172,65 +175,8 @@ async def seek_references(engine, job_id, consumer_ip):
                             for sentence in item_blob.sentences:
                                 if re.search(regex, str(sentence.lower())):
                                     response["body"] = sentence.raw
+                                    response["body_value"] = True
                                     break
-
-                    # get authors of the article
-                    get_contrib_group = article.find("./front/article-meta/contrib-group")
-                    response['author'] = ''
-
-                    try:
-                        get_authors = get_contrib_group.findall(".//name")
-                        authors = []
-                        for author in get_authors:
-                            surname = author.find('surname').text if author.find('surname').text else ''
-                            given_names = author.find('given-names').text if author.find('given-names').text else ''
-                            if surname and given_names:
-                                authors.append(surname + ", " + given_names)
-                            elif surname or given_names:
-                                authors.append(surname + given_names)
-                        response["author"] = '; '.join(authors)
-                    except AttributeError:
-                        pass
-
-                    # get pmid and doi
-                    article_meta = article.findall("./front/article-meta/article-id")
-                    response['doi'] = ''
-                    response['pmid'] = ''
-
-                    for item in article_meta:
-                        if item.attrib == {'pub-id-type': 'doi'}:
-                            response["doi"] = item.text
-                        elif item.attrib == {'pub-id-type': 'pmid'}:
-                            response["pmid"] = item.text
-
-                    # get year
-                    response["year"] = 0
-                    get_year = article.findall("./front/article-meta/pub-date")
-                    for item in get_year:
-                        if item.attrib == {'pub-type': 'epub'}:
-                            year = int(item.find('year').text) if item.find('year').text else 0
-                            response["year"] = year
-
-                    # get journal
-                    response["journal"] = ''
-                    get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
-                    if get_journal and get_journal.text:
-                        response["journal"] = get_journal.text
-                    else:
-                        # maybe it is in a different element
-                        journal = article.find("./front/journal-meta/journal-title")
-                        if journal and journal.text:
-                            response["journal"] = journal.text
-
-                    # add job_id
-                    response["job_id"] = job_id
-
-                    # add pmcid
-                    response["pmcid"] = pmcid
-
-                    # response must have abstract and body
-                    if 'abstract' not in response:
-                        response['abstract'] = ''
 
                     if 'body' not in response:
                         # check if there is a floats-group section
@@ -243,11 +189,74 @@ async def seek_references(engine, job_id, consumer_ip):
                                         response["body"] = sentence.raw + " (Id found in an image or table)"
                                         break
 
-                    if 'body' not in response:
-                        logging.debug("Job_id not found for pmcid {}.".format(pmcid))
-                        response['body'] = ''
+                    if 'body' in response or 'abstract' in response:
+                        # get authors of the article
+                        get_contrib_group = article.find("./front/article-meta/contrib-group")
+                        response['author'] = ''
 
-                    results.append(response)
+                        try:
+                            get_authors = get_contrib_group.findall(".//name")
+                            authors = []
+                            for author in get_authors:
+                                surname = author.find('surname').text if author.find('surname').text else ''
+                                given_names = author.find('given-names').text if author.find('given-names').text else ''
+                                if surname and given_names:
+                                    authors.append(surname + ", " + given_names)
+                                elif surname or given_names:
+                                    authors.append(surname + given_names)
+                            response["author"] = '; '.join(authors)
+                        except AttributeError:
+                            pass
+
+                        # get pmid and doi
+                        article_meta = article.findall("./front/article-meta/article-id")
+                        response['doi'] = ''
+                        response['pmid'] = ''
+
+                        for item in article_meta:
+                            if item.attrib == {'pub-id-type': 'doi'}:
+                                response["doi"] = item.text
+                            elif item.attrib == {'pub-id-type': 'pmid'}:
+                                response["pmid"] = item.text
+
+                        # get year
+                        response["year"] = 0
+                        get_year = article.findall("./front/article-meta/pub-date")
+                        for item in get_year:
+                            if item.attrib == {'pub-type': 'epub'}:
+                                year = int(item.find('year').text) if item.find('year').text else 0
+                                response["year"] = year
+
+                        # get journal
+                        response["journal"] = ''
+                        get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
+                        if get_journal and get_journal.text:
+                            response["journal"] = get_journal.text
+                        else:
+                            # maybe it is in a different element
+                            journal = article.find("./front/journal-meta/journal-title")
+                            if journal and journal.text:
+                                response["journal"] = journal.text
+
+                        # add job_id
+                        response["job_id"] = job_id
+
+                        # add pmcid
+                        response["pmcid"] = pmcid
+
+                        # response must have abstract and body
+                        if 'abstract' not in response:
+                            response['abstract'] = ''
+
+                        if 'body' not in response:
+                            response['body'] = ''
+
+                        results.append(response)
+
+                    else:
+                        # decrease hit_count if id is not found
+                        hit_count = int(hit_count) - 1
+                        logging.debug("Job_id {} not found for pmcid {}.".format(job_id, pmcid))
 
     if results and int(hit_count) > 0:
         # save results in DB
