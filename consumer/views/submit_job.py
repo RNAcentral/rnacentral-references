@@ -230,13 +230,15 @@ async def seek_references(engine, job_id, consumer_ip):
                         # get journal
                         response["journal"] = ''
                         get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
-                        if get_journal and get_journal.text:
+                        try:
                             response["journal"] = get_journal.text
-                        else:
+                        except AttributeError:
                             # maybe it is in a different element
                             journal = article.find("./front/journal-meta/journal-title")
-                            if journal and journal.text:
+                            try:
                                 response["journal"] = journal.text
+                            except AttributeError:
+                                logging.debug("Journal not found for pmcid {}".format(pmcid))
 
                         # add job_id
                         response["job_id"] = job_id
