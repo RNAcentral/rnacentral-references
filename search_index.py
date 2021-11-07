@@ -40,6 +40,7 @@ async def search_index():
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
         # get jobs
         job_ids = await get_jobs(engine)
+        job_ids = [job for job in job_ids if not job.startswith('rf')]
 
         # create directory to store xml files, if necessary
         path_to_xml_files.mkdir(parents=True, exist_ok=True)
@@ -53,37 +54,39 @@ async def search_index():
         entries = ET.SubElement(database, "entries")
 
         for job in job_ids:
-            # get a list of URS associated with this job_id
-            urs_list = await get_urs(engine, job)
+            if entry_count < 1000:
+                # get a list of URS associated with this job_id
+                urs_list = await get_urs(engine, job)
 
-            # get results
-            results = await get_job_results(engine, job)
+                # get results
+                results = await get_job_results(engine, job)
 
-            for urs in urs_list:
-                # iterate over the results to complete the xml
-                for item in results:
-                    entry = ET.SubElement(entries, "entry", id=urs + "_" + str(entry_count))
-                    additional_fields = ET.SubElement(entry, "additional_fields")
-                    ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
-                    ET.SubElement(additional_fields, "field", name="job_id").text = job
-                    ET.SubElement(additional_fields, "field", name="urs_taxid").text = urs
-                    ET.SubElement(additional_fields, "field", name="title").text = item['title']
-                    ET.SubElement(additional_fields, "field", name="title_contains_value").text = str(item['title_contains_value'])
-                    ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
-                    ET.SubElement(additional_fields, "field", name="body").text = item['body']
-                    ET.SubElement(additional_fields, "field", name="author").text = item['author']
-                    ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
-                    ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
-                    ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
+                if results:
+                    for urs in urs_list:
+                        entry = ET.SubElement(entries, "entry", id=urs + "_" + job)
+                        additional_fields = ET.SubElement(entry, "additional_fields")
+                        ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
+                        ET.SubElement(additional_fields, "field", name="job_id").text = job
+                        ET.SubElement(additional_fields, "field", name="urs_taxid").text = urs
+                        ET.SubElement(additional_fields, "field", name="title").text = results[0]['title']
+                        ET.SubElement(additional_fields, "field", name="title_value").text = str(results[0]['title_value'])
+                        ET.SubElement(additional_fields, "field", name="abstract").text = results[0]['abstract']
+                        ET.SubElement(additional_fields, "field", name="body").text = results[0]['body']
+                        ET.SubElement(additional_fields, "field", name="author").text = results[0]['author']
+                        ET.SubElement(additional_fields, "field", name="pmcid").text = results[0]['pmcid']
+                        ET.SubElement(additional_fields, "field", name="pmid").text = results[0]['pmid']
+                        ET.SubElement(additional_fields, "field", name="doi").text = results[0]['doi']
 
-                    # update entry_count
-                    entry_count += 1
+                        # update entry_count
+                        entry_count += 1
+            else:
+                break
 
         ET.SubElement(database, "entry_count").text = str(entry_count)
 
         # save the file
         tree = ET.ElementTree(database)
-        tree.write(str(path_to_xml_files) + "/publications.xml")
+        tree.write(str(path_to_xml_files) + "/test_publications.xml")
 
 
 if __name__ == '__main__':

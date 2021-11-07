@@ -43,7 +43,7 @@ async def get_job_results(engine, job_id):
     :return: list of dicts containing the results
     """
     results = []
-    sql = (sa.select([Result.c.title, Result.c.title_contains_value, Result.c.abstract, Result.c.body,
+    sql = (sa.select([Result.c.title, Result.c.title_value, Result.c.abstract, Result.c.body,
                       Result.c.author, Result.c.pmcid, Result.c.pmid, Result.c.doi, Result.c.year, Result.c.journal ])
            .select_from(Result)
            .where(Result.c.job_id == job_id))  # noqa
@@ -54,7 +54,7 @@ async def get_job_results(engine, job_id):
                 # add result
                 results.append({
                     'title': row[0],
-                    'title_contains_value': row[1],
+                    'title_value': row[1],
                     'abstract': row[2],
                     'body': row[3],
                     'author': row[4],

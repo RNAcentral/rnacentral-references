@@ -56,7 +56,7 @@ class JobResultsTestCase(AioHTTPTestCase):
                 Result.insert().values(
                     job_id="mir-21",
                     title='Lorem ipsum dolor sit amet',
-                    title_contains_value=False,
+                    title_value=False,
                     abstract='',
                     body='Lorem ipsum miR-21 dolor',
                     author='de Tal, Fulano',
@@ -82,7 +82,7 @@ class JobResultsTestCase(AioHTTPTestCase):
             text = await response.text()
             assert json.loads(text) == [{
                 "title": "Lorem ipsum dolor sit amet",
-                "title_contains_value": False,
+                "title_value": False,
                 "abstract": "",
                 "body": "Lorem ipsum miR-21 dolor",
                 "author": "de Tal, Fulano",

@@ -147,11 +147,11 @@ async def seek_references(engine, job_id, consumer_ip):
                     response["title"] = title
 
                     # check if the title has the job_id
-                    response["title_contains_value"] = False
+                    response["title_value"] = False
                     title_blob = TextBlob(title)
                     for sentence in title_blob.sentences:
                         if re.search(regex, str(sentence.lower())):
-                            response["title_contains_value"] = True
+                            response["title_value"] = True
                             break
 
                     # check if the abstract has the job_id
