@@ -60,23 +60,25 @@ async def search_index():
                 # get results
                 results = await get_job_results(engine, job)
 
-                if results:
+                for result in results:
                     for urs in urs_list:
-                        entry = ET.SubElement(entries, "entry", id=urs + "_" + job)
+                        entry = ET.SubElement(entries, "entry", id=urs + "_" + job + "_" + result['pmcid'])
                         additional_fields = ET.SubElement(entry, "additional_fields")
                         ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
                         ET.SubElement(additional_fields, "field", name="job_id").text = job
                         ET.SubElement(additional_fields, "field", name="urs_taxid").text = urs
-                        ET.SubElement(additional_fields, "field", name="title").text = results[0]['title']
-                        ET.SubElement(additional_fields, "field", name="title_value").text = str(results[0]['title_value'])
-                        ET.SubElement(additional_fields, "field", name="abstract").text = results[0]['abstract']
-                        ET.SubElement(additional_fields, "field", name="abstract_value").text = str(results[0]['abstract_value'])
-                        ET.SubElement(additional_fields, "field", name="body").text = results[0]['body']
-                        ET.SubElement(additional_fields, "field", name="body_value").text = str(results[0]['body_value'])
-                        ET.SubElement(additional_fields, "field", name="author").text = results[0]['author']
-                        ET.SubElement(additional_fields, "field", name="pmcid").text = results[0]['pmcid']
-                        ET.SubElement(additional_fields, "field", name="pmid").text = results[0]['pmid']
-                        ET.SubElement(additional_fields, "field", name="doi").text = results[0]['doi']
+                        ET.SubElement(additional_fields, "field", name="title").text = result['title']
+                        ET.SubElement(additional_fields, "field", name="title_value").text = str(result['title_value'])
+                        ET.SubElement(additional_fields, "field", name="abstract").text = result['abstract']
+                        ET.SubElement(additional_fields, "field", name="abstract_value").text = str(result['abstract_value'])
+                        ET.SubElement(additional_fields, "field", name="body").text = result['body']
+                        ET.SubElement(additional_fields, "field", name="body_value").text = str(result['body_value'])
+                        ET.SubElement(additional_fields, "field", name="author").text = result['author']
+                        ET.SubElement(additional_fields, "field", name="pmcid").text = result['pmcid']
+                        ET.SubElement(additional_fields, "field", name="pmid").text = result['pmid']
+                        ET.SubElement(additional_fields, "field", name="doi").text = result['doi']
+                        ET.SubElement(additional_fields, "field", name="journal").text = result['journal']
+                        ET.SubElement(additional_fields, "field", name="year").text = str(result['year'])
 
                         # update entry_count
                         entry_count += 1
