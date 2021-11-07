@@ -223,7 +223,7 @@ async def seek_references(engine, job_id, consumer_ip):
                         response["year"] = 0
                         get_year = article.findall("./front/article-meta/pub-date")
                         for item in get_year:
-                            if item.attrib == {'pub-type': 'epub'}:
+                            if 'epub' in item.attrib.values():
                                 year = int(item.find('year').text) if item.find('year').text else 0
                                 response["year"] = year
 
