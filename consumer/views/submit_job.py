@@ -256,7 +256,7 @@ async def seek_references(engine, job_id, consumer_ip):
                         results.append(response)
 
                     else:
-                        # decrease hit_count if id is not found
+                        # id not found - decrease hit_count
                         hit_count = int(hit_count) - 1
                         logging.debug("Job_id {} not found for pmcid {}.".format(job_id, pmcid))
 
