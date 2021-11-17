@@ -100,7 +100,7 @@ Result = sa.Table(
     sa.Column('pmid', sa.String(100)),
     sa.Column('doi', sa.String(100)),
     sa.Column('year', sa.Integer()),
-    sa.Column('journal', sa.String(100)),
+    sa.Column('journal', sa.String(255)),
 )
 
 """URS of the job"""
@@ -169,7 +169,7 @@ async def migrate(env):
                   pmid VARCHAR(100),
                   doi VARCHAR(100),
                   year INTEGER,
-                  journal VARCHAR(100),
+                  journal VARCHAR(255),
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
