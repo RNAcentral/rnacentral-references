@@ -19,6 +19,7 @@ import asyncio
 from aiohttp import web
 from aiojobs.aiohttp import spawn
 
+from consumer.settings import EUROPE_PMC
 from database.consumers import get_ip, set_consumer_status_and_job_id
 from database.job import save_hit_count, set_job_status
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
@@ -60,32 +61,23 @@ async def submit_job(request):
     return web.HTTPCreated()
 
 
-async def seek_references(engine, job_id, consumer_ip):
+async def articles_list(job_id, page="*"):
     """
-    Use Europe PMC API to get data, search job_id within the article, save results,
-    and make the consumer available for a new search.
-    Note:
-    - Europe PMC rate limits are 10 requests/second or 500 requests/minute.
-    - The Europe PMC SOAP Web Service search results are sorted by relevance.
-    :param consumer_ip: consumer IP address
-    :param engine: params to connect to the db
+    Function to create a list of "PMCIDs" that have job_id in their content
     :param job_id: id of the job
-    :return:
+    :param page: results page (* means the first page of results)
+    :return: list of "PMCIDs" and the next page, if any
     """
-    results = []
-    start = datetime.datetime.now()
-    regex = r"(^|\s|\()" + re.escape(job_id.split(":")[0]) + "($|[\s.,;?)])"
-    europe_pmc = "https://www.ebi.ac.uk/europepmc/webservices/rest/"
     query = f'search?query=("{job_id}" AND "rna" AND IN_EPMC:Y AND OPEN_ACCESS:Y ' \
-            f'AND NOT SRC:PPR)&pageSize=500&resultType=idlist'
+            f'AND NOT SRC:PPR)&pageSize=500&cursorMark={page}&resultType=idlist'
 
     # fetch articles
     try:
-        articles = requests.get(europe_pmc + query).text
+        articles = requests.get(EUROPE_PMC + query).text
     except requests.exceptions.RequestException as e:
         articles = None
         logging.debug("There was an error fetching articles from {}. "
-                      "Error message: {} ".format(europe_pmc + query, e))
+                      "Error message: {} ".format(EUROPE_PMC + query, e))
 
     root = None
     if articles:
@@ -101,167 +93,196 @@ async def seek_references(engine, job_id, consumer_ip):
             item.find('pmcid').text for item in root.findall("./resultList/result") if item.find('pmcid') is not None
         ]
 
-        # get hitCount
+        # get next page
         try:
-            hit_count = root.find('hitCount').text
+            next_page = root.find('nextCursorMark').text
         except AttributeError:
-            hit_count = "-1"
-
+            next_page = None
     else:
         pmcid_list = None
-        hit_count = "-1"
+        next_page = None
 
-    if pmcid_list:
-        for pmcid in pmcid_list:
-            # wait a while to respect the rate limit
-            await asyncio.sleep(0.3)
+    return pmcid_list, next_page
 
-            # fetch full article
+
+async def seek_references(engine, job_id, consumer_ip):
+    """
+    Using the Europe PMC API, this function first gets a list of articles
+    that mention job_id in their content and then parses article by article
+    and tries to extract a sentence containing the job_id.
+    Note:
+    - Europe PMC rate limits are 10 requests/second or 500 requests/minute.
+    - The Europe PMC SOAP Web Service search results are sorted by relevance.
+    :param consumer_ip: consumer IP address
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :return: save the results in the database and make the consumer available for a new search
+    """
+    results = []
+    start = datetime.datetime.now()
+    regex = r"(^|\s|\()" + re.escape(job_id.split(":")[0]) + "($|[\s.,;?)])"
+    pmcid_list = []
+    hit_count = 0
+
+    temp_pmcid_list, next_page = await articles_list(job_id)
+    for item in temp_pmcid_list:
+        if item not in pmcid_list:
+            pmcid_list.append(item)
+
+    while next_page:
+        temp_pmcid_list, next_page = await articles_list(job_id, next_page)
+        for item in temp_pmcid_list:
+            if item not in pmcid_list:
+                pmcid_list.append(item)
+
+    for pmcid in pmcid_list:
+        # wait a while to respect the rate limit
+        await asyncio.sleep(0.3)
+
+        # fetch full article
+        try:
+            get_article = requests.get(EUROPE_PMC + pmcid + "/fullTextXML").text
+        except requests.exceptions.RequestException as e:
+            get_article = None
+            logging.debug("There was an error fetching article {}. Error message: {} ".format(pmcid, e))
+
+        if get_article:
+            # parse using cElementTree
             try:
-                get_article = requests.get(europe_pmc + pmcid + "/fullTextXML").text
-            except requests.exceptions.RequestException as e:
-                get_article = None
-                logging.debug("There was an error fetching article {}. Error message: {} ".format(pmcid, e))
+                article = ET.fromstring(get_article)
+            except ParseError as e:
+                article = None
+                logging.debug("There was an error parsing the article {}. Error message: {} ".format(pmcid, e))
 
-            if get_article:
-                # parse using cElementTree
-                try:
-                    article = ET.fromstring(get_article)
-                except ParseError as e:
-                    article = None
-                    logging.debug("There was an error parsing the article {}. Error message: {} ".format(pmcid, e))
+            if article:
+                response = {}
 
-                if article:
-                    response = {}
+                # if the trans-title-group element is found it is because this article was not written in English
+                trans_title = article.find("./front/article-meta/title-group/trans-title-group")
+                if trans_title:
+                    # skip the current iteration
+                    continue
 
-                    # if the trans-title-group element is found it is because this article was not written in English
-                    trans_title = article.find("./front/article-meta/title-group/trans-title-group")
-                    if trans_title:
-                        # decrease hit_count and skip the current iteration
-                        hit_count = int(hit_count) - 1
-                        continue
+                # get title
+                get_title = article.find("./front/article-meta/title-group/article-title")
+                title = ''.join(get_title.itertext()).strip()
+                response["title"] = title
 
-                    # get title
-                    get_title = article.find("./front/article-meta/title-group/article-title")
-                    title = ''.join(get_title.itertext()).strip()
-                    response["title"] = title
+                # check if the title has the job_id
+                response["title_value"] = False
+                title_blob = TextBlob(title)
+                for sentence in title_blob.sentences:
+                    if re.search(regex, str(sentence.lower())):
+                        response["title_value"] = True
+                        break
 
-                    # check if the title has the job_id
-                    response["title_value"] = False
-                    title_blob = TextBlob(title)
-                    for sentence in title_blob.sentences:
-                        if re.search(regex, str(sentence.lower())):
-                            response["title_value"] = True
-                            break
+                # check if the abstract has the job_id
+                response["abstract_value"] = False
+                get_abstract = article.findall(".//abstract//*")
+                for item in get_abstract:
+                    if 'abstract' not in response and item.text:
+                        item_blob = TextBlob(item.text)
+                        for sentence in item_blob.sentences:
+                            if re.search(regex, str(sentence.lower())):
+                                response["abstract"] = sentence.raw
+                                response["abstract_value"] = True
+                                break
 
-                    # check if the abstract has the job_id
-                    response["abstract_value"] = False
-                    get_abstract = article.findall(".//abstract//*")
-                    for item in get_abstract:
-                        if 'abstract' not in response and item.text:
-                            item_blob = TextBlob(item.text)
-                            for sentence in item_blob.sentences:
-                                if re.search(regex, str(sentence.lower())):
-                                    response["abstract"] = sentence.raw
-                                    response["abstract_value"] = True
-                                    break
+                # check if the body has the job_id
+                response["body_value"] = False
+                get_body_p = article.findall(".//body//*")
+                for item in get_body_p:
+                    if 'body' not in response and item.text:
+                        item_blob = TextBlob(item.text)
+                        for sentence in item_blob.sentences:
+                            if re.search(regex, str(sentence.lower())):
+                                response["body"] = sentence.raw
+                                response["body_value"] = True
+                                break
 
-                    # check if the body has the job_id
-                    response["body_value"] = False
-                    get_body_p = article.findall(".//body//*")
-                    for item in get_body_p:
+                if 'body' not in response:
+                    # check if there is a floats-group section
+                    tables_and_fig = article.findall(".//floats-group//*")
+                    for item in tables_and_fig:
                         if 'body' not in response and item.text:
                             item_blob = TextBlob(item.text)
                             for sentence in item_blob.sentences:
                                 if re.search(regex, str(sentence.lower())):
-                                    response["body"] = sentence.raw
-                                    response["body_value"] = True
+                                    response["body"] = sentence.raw + " (Id found in an image or table)"
                                     break
 
+                if 'body' in response or 'abstract' in response:
+                    # get authors of the article
+                    get_contrib_group = article.find("./front/article-meta/contrib-group")
+                    response['author'] = ''
+
+                    try:
+                        get_authors = get_contrib_group.findall(".//name")
+                        authors = []
+                        for author in get_authors:
+                            surname = author.find('surname').text if author.find('surname').text else ''
+                            given_names = author.find('given-names').text if author.find('given-names').text else ''
+                            if surname and given_names:
+                                authors.append(surname + ", " + given_names)
+                            elif surname or given_names:
+                                authors.append(surname + given_names)
+                        response["author"] = '; '.join(authors)
+                    except AttributeError:
+                        pass
+
+                    # get pmid and doi
+                    article_meta = article.findall("./front/article-meta/article-id")
+                    response['doi'] = ''
+                    response['pmid'] = ''
+
+                    for item in article_meta:
+                        if item.attrib == {'pub-id-type': 'doi'}:
+                            response["doi"] = item.text
+                        elif item.attrib == {'pub-id-type': 'pmid'}:
+                            response["pmid"] = item.text
+
+                    # get year
+                    response["year"] = 0
+                    get_year = article.findall("./front/article-meta/pub-date")
+                    pub_type = ['epub', 'ppub', 'pub']
+                    for item in get_year:
+                        if set(pub_type).intersection(item.attrib.values()):
+                            year = int(item.find('year').text) if item.find('year').text else 0
+                            response["year"] = year
+
+                    # get journal
+                    response["journal"] = ''
+                    get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
+                    try:
+                        response["journal"] = get_journal.text
+                    except AttributeError:
+                        # maybe it is in a different element
+                        journal = article.find("./front/journal-meta/journal-title")
+                        try:
+                            response["journal"] = journal.text
+                        except AttributeError:
+                            logging.debug("Journal not found for pmcid {}".format(pmcid))
+
+                    # add job_id
+                    response["job_id"] = job_id
+
+                    # add pmcid
+                    response["pmcid"] = pmcid
+
+                    # response must have abstract and body
+                    if 'abstract' not in response:
+                        response['abstract'] = ''
+
                     if 'body' not in response:
-                        # check if there is a floats-group section
-                        tables_and_fig = article.findall(".//floats-group//*")
-                        for item in tables_and_fig:
-                            if 'body' not in response and item.text:
-                                item_blob = TextBlob(item.text)
-                                for sentence in item_blob.sentences:
-                                    if re.search(regex, str(sentence.lower())):
-                                        response["body"] = sentence.raw + " (Id found in an image or table)"
-                                        break
+                        response['body'] = ''
 
-                    if 'body' in response or 'abstract' in response:
-                        # get authors of the article
-                        get_contrib_group = article.find("./front/article-meta/contrib-group")
-                        response['author'] = ''
+                    hit_count += 1
+                    results.append(response)
 
-                        try:
-                            get_authors = get_contrib_group.findall(".//name")
-                            authors = []
-                            for author in get_authors:
-                                surname = author.find('surname').text if author.find('surname').text else ''
-                                given_names = author.find('given-names').text if author.find('given-names').text else ''
-                                if surname and given_names:
-                                    authors.append(surname + ", " + given_names)
-                                elif surname or given_names:
-                                    authors.append(surname + given_names)
-                            response["author"] = '; '.join(authors)
-                        except AttributeError:
-                            pass
+                else:
+                    logging.debug("Job_id {} not found for pmcid {}.".format(job_id, pmcid))
 
-                        # get pmid and doi
-                        article_meta = article.findall("./front/article-meta/article-id")
-                        response['doi'] = ''
-                        response['pmid'] = ''
-
-                        for item in article_meta:
-                            if item.attrib == {'pub-id-type': 'doi'}:
-                                response["doi"] = item.text
-                            elif item.attrib == {'pub-id-type': 'pmid'}:
-                                response["pmid"] = item.text
-
-                        # get year
-                        response["year"] = 0
-                        get_year = article.findall("./front/article-meta/pub-date")
-                        pub_type = ['epub', 'ppub', 'pub']
-                        for item in get_year:
-                            if set(pub_type).intersection(item.attrib.values()):
-                                year = int(item.find('year').text) if item.find('year').text else 0
-                                response["year"] = year
-
-                        # get journal
-                        response["journal"] = ''
-                        get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
-                        try:
-                            response["journal"] = get_journal.text
-                        except AttributeError:
-                            # maybe it is in a different element
-                            journal = article.find("./front/journal-meta/journal-title")
-                            try:
-                                response["journal"] = journal.text
-                            except AttributeError:
-                                logging.debug("Journal not found for pmcid {}".format(pmcid))
-
-                        # add job_id
-                        response["job_id"] = job_id
-
-                        # add pmcid
-                        response["pmcid"] = pmcid
-
-                        # response must have abstract and body
-                        if 'abstract' not in response:
-                            response['abstract'] = ''
-
-                        if 'body' not in response:
-                            response['body'] = ''
-
-                        results.append(response)
-
-                    else:
-                        # id not found - decrease hit_count
-                        hit_count = int(hit_count) - 1
-                        logging.debug("Job_id {} not found for pmcid {}.".format(job_id, pmcid))
-
-    if results and int(hit_count) > 0:
+    if results:
         # save results in DB
         await save_results(engine, job_id, results)
 
@@ -279,31 +300,15 @@ async def seek_references(engine, job_id, consumer_ip):
         # set job status
         await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.error)
 
-    elif not pmcid_list and int(hit_count) > 0:
-        # if pmcid is not found, but hit_count is greater than 0, then something is wrong
-        logging.debug("Could not get pmcid for job_id {}.".format(job_id))
-
-        # set job status
-        await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.error)
-
-    elif not pmcid_list and int(hit_count) == 0:
-        # if pmcid is not found and hit_count is 0, so no articles were actually found
+    elif not pmcid_list:
+        # if pmcid is not found so no articles were actually found
         logging.debug("No results found for job_id {}.".format(job_id))
 
         # set job status
         await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.success)
 
-    elif int(hit_count) == -1:
-        # here the error could have been in the parse of the articles or in getting the hit_count
-        logging.debug("Could not get hit_count for job_id {}.".format(job_id))
-        logging.debug("Could not parse the articles {}.".format(articles))
-
-        # set job status
-        await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.error)
-
     # save hit_count
-    if int(hit_count) > -1:
-        await save_hit_count(engine, job_id, int(hit_count))
+    await save_hit_count(engine, job_id, hit_count)
 
     # update consumer
     await set_consumer_status_and_job_id(engine, consumer_ip, CONSUMER_STATUS_CHOICES.available, "")
