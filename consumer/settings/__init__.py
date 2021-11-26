@@ -44,6 +44,9 @@ HOST = '0.0.0.0'
 # TCP port for the server to listen on
 PORT = 8081
 
+# Europe PMC API
+EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/"
+
 
 def substitute_environment_variables():
     """
