@@ -12,8 +12,12 @@ limitations under the License.
 """
 
 import asyncio
+import gzip
 import os
-import xml.etree.cElementTree as ET
+import random
+import string
+import xml.etree.ElementTree as ET
+
 
 from aiopg.sa import create_engine
 from dotenv import load_dotenv
@@ -25,9 +29,50 @@ from producer.settings import path_to_xml_files
 load_dotenv()
 
 
+async def create_xml_file(results):
+    """
+    Creates the XML that will be used by the search index
+    :param results: list of results
+    :return: None
+    """
+    # start to create a XML file
+    database = ET.Element("database")
+    ET.SubElement(database, "name").text = "RNAcentral"
+    entries = ET.SubElement(database, "entries")
+
+    for item in results:
+        entry = ET.SubElement(entries, "entry", id=item["urs_taxid"] + "_" + item["job_id"] + "_" + item['pmcid'])
+        additional_fields = ET.SubElement(entry, "additional_fields")
+        ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
+        ET.SubElement(additional_fields, "field", name="job_id").text = item["job_id"]
+        ET.SubElement(additional_fields, "field", name="urs_taxid").text = item["urs_taxid"]
+        ET.SubElement(additional_fields, "field", name="title").text = item['title']
+        ET.SubElement(additional_fields, "field", name="title_value").text = item['title_value']
+        ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
+        ET.SubElement(additional_fields, "field", name="abstract_value").text = item['abstract_value']
+        ET.SubElement(additional_fields, "field", name="body").text = item['body']
+        ET.SubElement(additional_fields, "field", name="body_value").text = item['body_value']
+        ET.SubElement(additional_fields, "field", name="author").text = item['author']
+        ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
+        ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
+        ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
+        ET.SubElement(additional_fields, "field", name="journal").text = item['journal']
+        ET.SubElement(additional_fields, "field", name="year").text = item['year']
+
+    ET.SubElement(database, "entry_count").text = str(len(results))
+
+    # save the file
+    tree = ET.ElementTree(database)
+    ET.indent(tree, space="\t", level=0)
+    name = ''.join(random.choices(string.ascii_uppercase + string.digits, k=16))
+    with gzip.open(str(path_to_xml_files) + "/publications_" + name + ".xml.gz", "wb") as file:
+        tree.write(file)
+
+
 async def search_index():
     """
-    This function fetches the results of each job_id and creates the XML that will be used by the search index
+    This function fetches the results of each job_id and creates a temporary list to store the data.
+    It calls the create_xml_file function when the temporary list exceeds 200k results.
     Run it with: python3 search_index.py
     :return: create xml file
     """
@@ -44,52 +89,40 @@ async def search_index():
         # create directory to store xml files, if necessary
         path_to_xml_files.mkdir(parents=True, exist_ok=True)
 
-        # start entry_count
-        entry_count = 0
-
-        # start to create a XML file
-        database = ET.Element("database")
-        ET.SubElement(database, "name").text = "RNAcentral"
-        entries = ET.SubElement(database, "entries")
+        # add results
+        temp_results = []
 
         for job in job_ids:
-            if entry_count < 1000:
-                # get a list of URS associated with this job_id
-                urs_list = await get_urs(engine, job)
+            # get a list of URS associated with this job_id
+            urs_list = await get_urs(engine, job)
 
-                # get results
-                results = await get_job_results(engine, job)
+            # get results
+            results = await get_job_results(engine, job)
 
-                for result in results:
-                    for urs in urs_list:
-                        entry = ET.SubElement(entries, "entry", id=urs + "_" + job + "_" + result['pmcid'])
-                        additional_fields = ET.SubElement(entry, "additional_fields")
-                        ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
-                        ET.SubElement(additional_fields, "field", name="job_id").text = job
-                        ET.SubElement(additional_fields, "field", name="urs_taxid").text = urs
-                        ET.SubElement(additional_fields, "field", name="title").text = result['title']
-                        ET.SubElement(additional_fields, "field", name="title_value").text = str(result['title_value'])
-                        ET.SubElement(additional_fields, "field", name="abstract").text = result['abstract']
-                        ET.SubElement(additional_fields, "field", name="abstract_value").text = str(result['abstract_value'])
-                        ET.SubElement(additional_fields, "field", name="body").text = result['body']
-                        ET.SubElement(additional_fields, "field", name="body_value").text = str(result['body_value'])
-                        ET.SubElement(additional_fields, "field", name="author").text = result['author']
-                        ET.SubElement(additional_fields, "field", name="pmcid").text = result['pmcid']
-                        ET.SubElement(additional_fields, "field", name="pmid").text = result['pmid']
-                        ET.SubElement(additional_fields, "field", name="doi").text = result['doi']
-                        ET.SubElement(additional_fields, "field", name="journal").text = result['journal']
-                        ET.SubElement(additional_fields, "field", name="year").text = str(result['year'])
+            for result in results:
+                for urs in urs_list:
+                    temp_results.append({
+                        "job_id": job,
+                        "urs_taxid": urs,
+                        "title": result["title"],
+                        "title_value": str(result['title_value']),
+                        "abstract": result['abstract'],
+                        "abstract_value": str(result['abstract_value']),
+                        "body": result['body'],
+                        "body_value": str(result['body_value']),
+                        "author": result['author'],
+                        "pmcid": result['pmcid'],
+                        "pmid": result['pmid'],
+                        "doi": result['doi'],
+                        "journal": result['journal'],
+                        "year": str(result['year'])
+                    })
 
-                        # update entry_count
-                        entry_count += 1
-            else:
-                break
+                    if len(temp_results) > 200000:
+                        await create_xml_file(temp_results)
+                        temp_results = []
 
-        ET.SubElement(database, "entry_count").text = str(entry_count)
-
-        # save the file
-        tree = ET.ElementTree(database)
-        tree.write(str(path_to_xml_files) + "/test_publications.xml")
+        await create_xml_file(temp_results)
 
 
 if __name__ == '__main__':
