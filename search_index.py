@@ -22,7 +22,7 @@ import xml.etree.ElementTree as ET
 from aiopg.sa import create_engine
 from dotenv import load_dotenv
 
-from database.job import get_jobs, get_urs
+from database.job import get_jobs
 from database.results import get_job_results
 from producer.settings import path_to_xml_files
 
@@ -41,11 +41,10 @@ async def create_xml_file(results):
     entries = ET.SubElement(database, "entries")
 
     for item in results:
-        entry = ET.SubElement(entries, "entry", id=item["urs_taxid"] + "_" + item["job_id"] + "_" + item['pmcid'])
+        entry = ET.SubElement(entries, "entry", item["job_id"] + "_" + item['pmcid'])
         additional_fields = ET.SubElement(entry, "additional_fields")
         ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
         ET.SubElement(additional_fields, "field", name="job_id").text = item["job_id"]
-        ET.SubElement(additional_fields, "field", name="urs_taxid").text = item["urs_taxid"]
         ET.SubElement(additional_fields, "field", name="title").text = item['title']
         ET.SubElement(additional_fields, "field", name="title_value").text = item['title_value']
         ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
@@ -93,34 +92,29 @@ async def search_index():
         temp_results = []
 
         for job in job_ids:
-            # get a list of URS associated with this job_id
-            urs_list = await get_urs(engine, job)
-
             # get results
             results = await get_job_results(engine, job)
 
             for result in results:
-                for urs in urs_list:
-                    temp_results.append({
-                        "job_id": job,
-                        "urs_taxid": urs,
-                        "title": result["title"],
-                        "title_value": str(result['title_value']),
-                        "abstract": result['abstract'],
-                        "abstract_value": str(result['abstract_value']),
-                        "body": result['body'],
-                        "body_value": str(result['body_value']),
-                        "author": result['author'],
-                        "pmcid": result['pmcid'],
-                        "pmid": result['pmid'],
-                        "doi": result['doi'],
-                        "journal": result['journal'],
-                        "year": str(result['year'])
-                    })
+                temp_results.append({
+                    "job_id": job,
+                    "title": result["title"],
+                    "title_value": str(result['title_value']),
+                    "abstract": result['abstract'],
+                    "abstract_value": str(result['abstract_value']),
+                    "body": result['body'],
+                    "body_value": str(result['body_value']),
+                    "author": result['author'],
+                    "pmcid": result['pmcid'],
+                    "pmid": result['pmid'],
+                    "doi": result['doi'],
+                    "journal": result['journal'],
+                    "year": str(result['year'])
+                })
 
-                    if len(temp_results) > 200000:
-                        await create_xml_file(temp_results)
-                        temp_results = []
+                if len(temp_results) > 200000:
+                    await create_xml_file(temp_results)
+                    temp_results = []
 
         await create_xml_file(temp_results)
 
