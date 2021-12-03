@@ -37,11 +37,11 @@ class SubmitJobTestCase(AioHTTPTestCase):
 
     @unittest_run_loop
     async def test_submit_job_post_success(self):
-        data = json.dumps({"id": "FOO_BAR", "urs_taxid": "URS123"})
+        data = json.dumps({"id": "FOO_BAR"})
         async with self.client.post(path='/api/submit-job', data=data) as response:
             assert response.status == 201
             text = await response.text()
-            assert text == '{"job_id": "foo_bar"}'
+            assert text == '{"job_id": "FOO_BAR"}'
 
     @unittest_run_loop
     async def test_submit_job_post_fail(self):
@@ -49,4 +49,4 @@ class SubmitJobTestCase(AioHTTPTestCase):
         async with self.client.post(path='/api/submit-job', data=data) as response:
             assert response.status == 400
             text = await response.text()
-            assert text == '{"error": "id or urs_taxid not found"}'
+            assert text == '{"id": "Not found"}'

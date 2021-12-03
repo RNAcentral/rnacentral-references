@@ -66,7 +66,8 @@ class JobResultsTestCase(AioHTTPTestCase):
                     pmid='123456789',
                     doi='10.1234/journal.123',
                     year=2021,
-                    journal='foo'
+                    journal='foo',
+                    count=2
                 )
             )
 
@@ -94,7 +95,8 @@ class JobResultsTestCase(AioHTTPTestCase):
                 "pmid": "123456789",
                 "doi": "10.1234/journal.123",
                 "year": 2021,
-                "journal": "foo"
+                "journal": "foo",
+                "count": 2
             }]
 
     @unittest_run_loop
