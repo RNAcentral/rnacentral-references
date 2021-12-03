@@ -17,4 +17,4 @@ from aiojobs.aiohttp import atomic
 
 @atomic
 async def index(request):
-    return web.Response(text="Hello, world")
+    return web.Response(text="Hello, producer")
