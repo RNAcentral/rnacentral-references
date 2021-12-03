@@ -1,5 +1,5 @@
 """
-Copyright [2009-2019] EMBL-European Bioinformatics Institute
+Copyright [2009-present] EMBL-European Bioinformatics Institute
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -81,6 +81,7 @@ Job = sa.Table(
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
     sa.Column('hit_count', sa.Integer, nullable=True),
+    sa.Column('cited_by', sa.Integer, nullable=True),
 )
 
 """Results of a specific Job"""
@@ -101,15 +102,7 @@ Result = sa.Table(
     sa.Column('doi', sa.String(100)),
     sa.Column('year', sa.Integer()),
     sa.Column('journal', sa.String(255)),
-)
-
-"""URS of the job"""
-Urs = sa.Table(
-    'urs',
-    metadata,
-    sa.Column('id', sa.Integer, primary_key=True),
-    sa.Column('urs_taxid', sa.String(30)),
-    sa.Column('job_id', sa.String(100), sa.ForeignKey('job.job_id')),
+    sa.Column('count', sa.Integer()),
 )
 
 # Migrations
@@ -133,7 +126,6 @@ async def migrate(env):
     async with engine:
         async with engine.acquire() as connection:
             await connection.execute('DROP TABLE IF EXISTS result')
-            await connection.execute('DROP TABLE IF EXISTS urs')
             await connection.execute('DROP TABLE IF EXISTS job')
             await connection.execute('DROP TABLE IF EXISTS consumer')
 
@@ -151,7 +143,8 @@ async def migrate(env):
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
                   status VARCHAR(10),
-                  hit_count INTEGER)
+                  hit_count INTEGER,
+                  cited_by INTEGER)
             ''')
 
             await connection.execute('''
@@ -170,17 +163,8 @@ async def migrate(env):
                   doi VARCHAR(100),
                   year INTEGER,
                   journal VARCHAR(255),
+                  count INTEGER,
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
-            await connection.execute('''
-                CREATE TABLE urs (
-                  id SERIAL PRIMARY KEY,
-                  urs_taxid VARCHAR(30),
-                  job_id VARCHAR(100),
-                  FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
-                  CONSTRAINT urs_job UNIQUE (urs_taxid, job_id))
-            ''')
-
             await connection.execute('''CREATE INDEX on result (job_id)''')
-            await connection.execute('''CREATE INDEX on urs (job_id)''')
