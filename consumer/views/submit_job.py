@@ -10,11 +10,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import asyncio
 import datetime
 import logging
+import nltk
 import re
 import requests
-import asyncio
 
 from aiohttp import web
 from aiojobs.aiohttp import spawn
@@ -24,7 +25,6 @@ from database.consumers import get_ip, set_consumer_status_and_job_id
 from database.job import save_hit_count, set_job_status
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
 from database.results import save_results
-from textblob import TextBlob
 from xml.etree import cElementTree as ET
 from xml.etree.ElementTree import ParseError
 
@@ -120,7 +120,7 @@ async def seek_references(engine, job_id, consumer_ip):
     """
     results = []
     start = datetime.datetime.now()
-    regex = r"(^|\s|\()" + re.escape(job_id.split(":")[0]) + "($|[\s.,;?)])"
+    regex = r"(^|\s|\()" + re.escape(job_id.lower().split(":")[0]) + "($|[\s.,;?)])"
     pmcid_list = []
     hit_count = 0
 
@@ -169,47 +169,46 @@ async def seek_references(engine, job_id, consumer_ip):
                 response["title"] = title
 
                 # check if the title has the job_id
-                response["title_value"] = False
-                title_blob = TextBlob(title)
-                for sentence in title_blob.sentences:
-                    if re.search(regex, str(sentence.lower())):
-                        response["title_value"] = True
-                        break
+                response["title_value"] = True if job_id.lower().split(":")[0] in title.lower() else False
 
                 # check if the abstract has the job_id
-                response["abstract_value"] = False
-                get_abstract = article.findall(".//abstract//*")
-                for item in get_abstract:
-                    if 'abstract' not in response and item.text:
-                        item_blob = TextBlob(item.text)
-                        for sentence in item_blob.sentences:
-                            if re.search(regex, str(sentence.lower())):
-                                response["abstract"] = sentence.raw
-                                response["abstract_value"] = True
-                                break
+                get_abstract_tags = article.findall(".//abstract//*")
+                abstract_sentences = []
+
+                for item in get_abstract_tags:
+                    if item.text:
+                        sentences = nltk.sent_tokenize(item.text)
+                        search_result = [sentence for sentence in sentences if re.search(regex, sentence.lower())]
+                        for sentence in search_result:
+                            abstract_sentences.append(sentence)
+
+                response["abstract"] = str(max(abstract_sentences, key=len)) if abstract_sentences else ""
+                response["abstract_value"] = True if abstract_sentences else False
 
                 # check if the body has the job_id
-                response["body_value"] = False
-                get_body_p = article.findall(".//body//*")
-                for item in get_body_p:
-                    if 'body' not in response and item.text:
-                        item_blob = TextBlob(item.text)
-                        for sentence in item_blob.sentences:
-                            if re.search(regex, str(sentence.lower())):
-                                response["body"] = sentence.raw
-                                response["body_value"] = True
-                                break
+                get_body_tags = article.findall(".//body//*")
+                body_sentences = []
+                for item in get_body_tags:
+                    if item.text:
+                        sentences = nltk.sent_tokenize(item.text)
+                        search_result = [sentence for sentence in sentences if re.search(regex, sentence.lower())]
+                        for sentence in search_result:
+                            body_sentences.append(sentence)
 
-                if 'body' not in response:
+                if body_sentences:
+                    response["body"] = str(max(body_sentences, key=len))
+                else:
                     # check if there is a floats-group section
                     tables_and_fig = article.findall(".//floats-group//*")
                     for item in tables_and_fig:
-                        if 'body' not in response and item.text:
-                            item_blob = TextBlob(item.text)
-                            for sentence in item_blob.sentences:
-                                if re.search(regex, str(sentence.lower())):
-                                    response["body"] = sentence.raw + " (Id found in an image or table)"
-                                    break
+                        if item.text:
+                            sentences = nltk.sent_tokenize(item.text)
+                            search_result = [sentence for sentence in sentences if re.search(regex, sentence.lower())]
+                            if search_result:
+                                response["body"] = search_result[0] + " (Id found in an image or table)"
+                                break
+
+                response["body_value"] = True if 'body' in response else False
 
                 if 'body' in response or 'abstract' in response:
                     # get authors of the article
@@ -276,6 +275,7 @@ async def seek_references(engine, job_id, consumer_ip):
                     if 'body' not in response:
                         response['body'] = ''
 
+                    response['count'] = len(abstract_sentences) + len(body_sentences)
                     hit_count += 1
                     results.append(response)
 
