@@ -275,7 +275,7 @@ async def seek_references(engine, job_id, consumer_ip):
                     if 'body' not in response:
                         response['body'] = ''
 
-                    response['count'] = len(abstract_sentences) + len(body_sentences)
+                    response['score'] = len(abstract_sentences) + len(body_sentences)
                     hit_count += 1
                     results.append(response)
 

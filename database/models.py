@@ -102,7 +102,7 @@ Result = sa.Table(
     sa.Column('doi', sa.String(100)),
     sa.Column('year', sa.Integer()),
     sa.Column('journal', sa.String(255)),
-    sa.Column('count', sa.Integer()),
+    sa.Column('score', sa.Integer()),
 )
 
 # Migrations
@@ -163,7 +163,7 @@ async def migrate(env):
                   doi VARCHAR(100),
                   year INTEGER,
                   journal VARCHAR(255),
-                  count INTEGER,
+                  score INTEGER,
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 

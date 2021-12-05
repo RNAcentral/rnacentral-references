@@ -67,7 +67,7 @@ class JobResultsTestCase(AioHTTPTestCase):
                     doi='10.1234/journal.123',
                     year=2021,
                     journal='foo',
-                    count=2
+                    score=2
                 )
             )
 
@@ -96,7 +96,7 @@ class JobResultsTestCase(AioHTTPTestCase):
                 "doi": "10.1234/journal.123",
                 "year": 2021,
                 "journal": "foo",
-                "count": 2
+                "score": 2
             }]
 
     @unittest_run_loop
