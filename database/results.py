@@ -45,7 +45,7 @@ async def get_job_results(engine, job_id):
     results = []
     sql = (sa.select([Result.c.title, Result.c.title_value, Result.c.abstract, Result.c.abstract_value, Result.c.body,
                       Result.c.body_value, Result.c.author, Result.c.pmcid, Result.c.pmid, Result.c.doi, Result.c.year,
-                      Result.c.journal,Result.c.score])
+                      Result.c.journal,Result.c.score, Result.c.cited_by])
            .select_from(Result)
            .where(Result.c.job_id == job_id))  # noqa
 
@@ -67,6 +67,7 @@ async def get_job_results(engine, job_id):
                     'year': row[10],
                     'journal': row[11],
                     'score': row[12],
+                    'cited_by': row[13],
                 })
             return results
 
