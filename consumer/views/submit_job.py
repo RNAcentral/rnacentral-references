@@ -32,6 +32,9 @@ from xml.etree.ElementTree import ParseError
 # avoid messages of level=INFO from urllib3
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
+# avoid messages of level=DEBUG for the module chardet.charsetprober
+logging.getLogger('chardet.charsetprober').setLevel(logging.INFO)
+
 
 async def submit_job(request):
     """
@@ -69,7 +72,7 @@ async def articles_list(job_id, page="*"):
     :return: list of "PMCIDs" and the next page, if any
     """
     query = f'search?query=("{job_id}" AND "rna" AND IN_EPMC:Y AND OPEN_ACCESS:Y ' \
-            f'AND NOT SRC:PPR)&pageSize=500&cursorMark={page}&resultType=idlist'
+            f'AND NOT SRC:PPR)&pageSize=500&cursorMark={page}'
 
     # fetch articles
     try:
@@ -88,9 +91,11 @@ async def articles_list(job_id, page="*"):
             pass
 
     if root:
-        # get pmcid
+        # get pmcid and citation
         pmcid_list = [
-            item.find('pmcid').text for item in root.findall("./resultList/result") if item.find('pmcid') is not None
+            {"pmcid": item.find('pmcid').text, "cited_by": item.find('citedByCount').text}
+            for item in root.findall("./resultList/result")
+            if item.find('pmcid') is not None and item.find('citedByCount') is not None
         ]
 
         # get next page
@@ -135,16 +140,16 @@ async def seek_references(engine, job_id, consumer_ip):
             if item not in pmcid_list:
                 pmcid_list.append(item)
 
-    for pmcid in pmcid_list:
+    for element in pmcid_list:
         # wait a while to respect the rate limit
         await asyncio.sleep(0.3)
 
         # fetch full article
         try:
-            get_article = requests.get(EUROPE_PMC + pmcid + "/fullTextXML").text
+            get_article = requests.get(EUROPE_PMC + element["pmcid"] + "/fullTextXML").text
         except requests.exceptions.RequestException as e:
             get_article = None
-            logging.debug("There was an error fetching article {}. Error message: {} ".format(pmcid, e))
+            logging.debug("There was an error fetching article {}. Error message: {} ".format(element["pmcid"], e))
 
         if get_article:
             # parse using cElementTree
@@ -152,7 +157,8 @@ async def seek_references(engine, job_id, consumer_ip):
                 article = ET.fromstring(get_article)
             except ParseError as e:
                 article = None
-                logging.debug("There was an error parsing the article {}. Error message: {} ".format(pmcid, e))
+                logging.debug("There was an error parsing the article {}. "
+                              "Error message: {} ".format(element["pmcid"], e))
 
             if article:
                 response = {}
@@ -260,13 +266,16 @@ async def seek_references(engine, job_id, consumer_ip):
                         try:
                             response["journal"] = journal.text
                         except AttributeError:
-                            logging.debug("Journal not found for pmcid {}".format(pmcid))
+                            logging.debug("Journal not found for pmcid {}".format(element["pmcid"]))
 
                     # add job_id
                     response["job_id"] = job_id
 
                     # add pmcid
-                    response["pmcid"] = pmcid
+                    response["pmcid"] = element["pmcid"]
+
+                    # add citation
+                    response["cited_by"] = element["cited_by"]
 
                     # response must have abstract and body
                     if 'abstract' not in response:
@@ -280,7 +289,7 @@ async def seek_references(engine, job_id, consumer_ip):
                     results.append(response)
 
                 else:
-                    logging.debug("Job_id {} not found for pmcid {}.".format(job_id, pmcid))
+                    logging.debug("Job_id {} not found for pmcid {}.".format(job_id, element["pmcid"]))
 
     if results:
         # save results in DB
