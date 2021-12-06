@@ -81,7 +81,6 @@ Job = sa.Table(
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
     sa.Column('hit_count', sa.Integer, nullable=True),
-    sa.Column('cited_by', sa.Integer, nullable=True),
 )
 
 """Results of a specific Job"""
@@ -103,6 +102,7 @@ Result = sa.Table(
     sa.Column('year', sa.Integer()),
     sa.Column('journal', sa.String(255)),
     sa.Column('score', sa.Integer()),
+    sa.Column('cited_by', sa.Integer()),
 )
 
 # Migrations
@@ -143,8 +143,7 @@ async def migrate(env):
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
                   status VARCHAR(10),
-                  hit_count INTEGER,
-                  cited_by INTEGER)
+                  hit_count INTEGER)
             ''')
 
             await connection.execute('''
@@ -164,6 +163,7 @@ async def migrate(env):
                   year INTEGER,
                   journal VARCHAR(255),
                   score INTEGER,
+                  cited_by INTEGER,
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
