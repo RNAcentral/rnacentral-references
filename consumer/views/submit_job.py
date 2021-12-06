@@ -216,7 +216,7 @@ async def seek_references(engine, job_id, consumer_ip):
 
                 response["body_value"] = True if 'body' in response else False
 
-                if 'body' in response or 'abstract' in response:
+                if abstract_sentences or body_sentences:
                     # get authors of the article
                     get_contrib_group = article.find("./front/article-meta/contrib-group")
                     response['author'] = ''
