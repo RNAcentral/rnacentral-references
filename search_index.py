@@ -41,7 +41,7 @@ async def create_xml_file(results):
     entries = ET.SubElement(database, "entries")
 
     for item in results:
-        entry = ET.SubElement(entries, "entry", item["job_id"] + "_" + item['pmcid'])
+        entry = ET.SubElement(entries, "entry", id=item["job_id"] + "_" + item['pmcid'])
         additional_fields = ET.SubElement(entry, "additional_fields")
         ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
         ET.SubElement(additional_fields, "field", name="job_id").text = item["job_id"]
