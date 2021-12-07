@@ -57,6 +57,8 @@ async def create_xml_file(results):
         ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
         ET.SubElement(additional_fields, "field", name="journal").text = item['journal']
         ET.SubElement(additional_fields, "field", name="year").text = item['year']
+        ET.SubElement(additional_fields, "field", name="score").text = item['score']
+        ET.SubElement(additional_fields, "field", name="cited_by").text = item['cited_by']
 
     ET.SubElement(database, "entry_count").text = str(len(results))
 
@@ -109,7 +111,9 @@ async def search_index():
                     "pmid": result['pmid'],
                     "doi": result['doi'],
                     "journal": result['journal'],
-                    "year": str(result['year'])
+                    "year": str(result['year']),
+                    "score": str(result['score']),
+                    "cited_by": str(result['cited_by']),
                 })
 
                 if len(temp_results) > 200000:
