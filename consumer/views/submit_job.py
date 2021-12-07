@@ -199,10 +199,11 @@ async def seek_references(engine, job_id, consumer_ip):
                         sentences = nltk.sent_tokenize(item.text)
                         search_result = [sentence for sentence in sentences if re.search(regex, sentence.lower())]
                         for sentence in search_result:
-                            body_sentences.append(sentence)
+                            body_sentences.append({"text": sentence, "tag": item.tag})
 
                 if body_sentences:
-                    response["body"] = str(max(body_sentences, key=len))
+                    text = [item["text"] for item in body_sentences if item["tag"] != "td"]
+                    response["body"] = str(max(text, key=len)) if text else "Id found in a table"
                 else:
                     # check if there is a floats-group section
                     tables_and_fig = article.findall(".//floats-group//*")
@@ -211,7 +212,11 @@ async def seek_references(engine, job_id, consumer_ip):
                             sentences = nltk.sent_tokenize(item.text)
                             search_result = [sentence for sentence in sentences if re.search(regex, sentence.lower())]
                             if search_result:
-                                response["body"] = search_result[0] + " (Id found in an image or table)"
+                                body_sentences.append({"text": search_result[0], "tag": item.tag})
+                                if item.tag == "td":
+                                    response["body"] = "Id found in a table"
+                                else:
+                                    response["body"] = "Id found in an image or table"
                                 break
 
                 response["body_value"] = True if 'body' in response else False
