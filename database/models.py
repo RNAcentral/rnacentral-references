@@ -164,7 +164,8 @@ async def migrate(env):
                   journal VARCHAR(255),
                   score INTEGER,
                   cited_by INTEGER,
-                  FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
+                  FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
+                  CONSTRAINT jobid_pmcid UNIQUE (job_id, pmcid))
             ''')
 
             await connection.execute('''CREATE INDEX on result (job_id)''')
