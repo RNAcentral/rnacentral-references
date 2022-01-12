@@ -25,7 +25,7 @@ from database.consumers import get_ip, set_consumer_status_and_job_id
 from database.job import save_hit_count, set_job_status
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
 from database.results import save_results
-from xml.etree import cElementTree as ET
+from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import ParseError
 
 
@@ -152,9 +152,35 @@ async def seek_references(engine, job_id, consumer_ip):
             logging.debug("There was an error fetching article {}. Error message: {} ".format(element["pmcid"], e))
 
         if get_article:
-            # parse using cElementTree
+            # get text
+            abstract_txt = re.search('<abstract(.*?)</abstract>', get_article, re.DOTALL)
+            body_txt = re.search('<body(.*?)</body>', get_article, re.DOTALL)
+            floats_group_txt = re.search('<floats-group(.*?)</floats-group>', get_article, re.DOTALL)
+
+            if abstract_txt and body_txt and floats_group_txt:
+                full_txt = abstract_txt[0] + body_txt[0] + floats_group_txt[0]
+            elif abstract_txt and body_txt:
+                full_txt = abstract_txt[0] + body_txt[0]
+            elif body_txt:
+                full_txt = body_txt[0]
+            else:
+                logging.debug("Text not found for pmcid {}.".format(element["pmcid"]))
+                continue
+
+            # remove tags
+            full_txt_no_tags = re.sub('<[^>]*>', ' ', full_txt)
+
+            # skip current iteration if job_id is not found
+            if not re.search(regex, full_txt_no_tags.lower()):
+                logging.debug("Job_id {} not found for pmcid {}.".format(job_id, element["pmcid"]))
+                continue
+
+            # remove tables and figures
+            full_txt = re.sub(r"(?is)<(counts|table-wrap|table|fig-group|fig).*?>.*?(</\1>)", "", get_article)
+
+            # parse using ElementTree
             try:
-                article = ET.fromstring(get_article)
+                article = ET.fromstring(full_txt)
             except ParseError as e:
                 article = None
                 logging.debug("There was an error parsing the article {}. "
@@ -179,122 +205,103 @@ async def seek_references(engine, job_id, consumer_ip):
 
                 # check if the abstract has the job_id
                 get_abstract_tags = article.findall(".//abstract//*")
-                abstract_sentences = []
-
-                for item in get_abstract_tags:
-                    if item.text:
-                        sentences = nltk.sent_tokenize(item.text)
-                        search_result = [sentence for sentence in sentences if re.search(regex, sentence.lower())]
-                        for sentence in search_result:
-                            abstract_sentences.append(sentence)
-
+                abstract_txt = ["".join(item.itertext()) for item in get_abstract_tags if item.text]
+                abstract_txt = ". ".join(abstract_txt)
+                abstract_txt = " ".join(abstract_txt.split())
+                sentences = nltk.sent_tokenize(abstract_txt)
+                abstract_sentences = [
+                    sentence.replace("..", ".") for sentence in sentences
+                    if re.search(regex, sentence.lower()) and len(sentence.split()) > 2
+                ]
                 response["abstract"] = str(max(abstract_sentences, key=len)) if abstract_sentences else ""
                 response["abstract_value"] = True if abstract_sentences else False
 
                 # check if the body has the job_id
                 get_body_tags = article.findall(".//body//*")
-                body_sentences = []
-                for item in get_body_tags:
-                    if item.text:
-                        sentences = nltk.sent_tokenize(item.text)
-                        search_result = [sentence for sentence in sentences if re.search(regex, sentence.lower())]
-                        for sentence in search_result:
-                            body_sentences.append({"text": sentence, "tag": item.tag})
+                body_txt = ["".join(item.itertext()) for item in get_body_tags if item.text]
+                body_txt = ". ".join(body_txt)
+                body_txt = " ".join(body_txt.split())
+                sentences = nltk.sent_tokenize(body_txt)
+                body_sentences = [
+                    sentence.replace("..", ".") for sentence in sentences
+                    if re.search(regex, sentence.lower()) and len(sentence.split()) > 2
+                ]
+                body_sentences_filtered = [sentence for sentence in body_sentences if "(" not in sentence]
 
-                if body_sentences:
-                    text = [item["text"] for item in body_sentences if item["tag"] != "td"]
-                    response["body"] = str(max(text, key=len)) if text else "Id found in a table"
+                if body_sentences_filtered:
+                    response["body"] = str(max(body_sentences_filtered, key=len))
+                elif body_sentences:
+                    response["body"] = str(max(body_sentences, key=len))
                 else:
-                    # check if there is a floats-group section
-                    tables_and_fig = article.findall(".//floats-group//*")
-                    for item in tables_and_fig:
-                        if item.text:
-                            sentences = nltk.sent_tokenize(item.text)
-                            search_result = [sentence for sentence in sentences if re.search(regex, sentence.lower())]
-                            if search_result:
-                                body_sentences.append({"text": search_result[0], "tag": item.tag})
-                                if item.tag == "td":
-                                    response["body"] = "Id found in a table"
-                                else:
-                                    response["body"] = "Id found in an image or table"
-                                break
+                    response["body"] = job_id + " found in an image or table"
 
-                response["body_value"] = True if 'body' in response else False
+                response["body_value"] = True if response["body"] else False
 
-                if abstract_sentences or body_sentences:
-                    # get authors of the article
-                    get_contrib_group = article.find("./front/article-meta/contrib-group")
-                    response['author'] = ''
+                # get authors of the article
+                get_contrib_group = article.find("./front/article-meta/contrib-group")
+                response['author'] = ''
 
+                try:
+                    get_authors = get_contrib_group.findall(".//name")
+                    authors = []
+                    for author in get_authors:
+                        surname = author.find('surname').text if author.find('surname').text else ''
+                        given_names = author.find('given-names').text if author.find('given-names').text else ''
+                        if surname and given_names:
+                            authors.append(surname + ", " + given_names)
+                        elif surname or given_names:
+                            authors.append(surname + given_names)
+                    response["author"] = '; '.join(authors)
+                except AttributeError:
+                    pass
+
+                # get pmid and doi
+                article_meta = article.findall("./front/article-meta/article-id")
+                response['doi'] = ''
+                response['pmid'] = ''
+
+                for item in article_meta:
+                    if item.attrib == {'pub-id-type': 'doi'}:
+                        response["doi"] = item.text
+                    elif item.attrib == {'pub-id-type': 'pmid'}:
+                        response["pmid"] = item.text
+
+                # get year
+                response["year"] = 0
+                get_year = article.findall("./front/article-meta/pub-date")
+                pub_type = ['epub', 'ppub', 'pub']
+                for item in get_year:
+                    if set(pub_type).intersection(item.attrib.values()):
+                        year = int(item.find('year').text) if item.find('year').text else 0
+                        response["year"] = year
+
+                # get journal
+                response["journal"] = ''
+                get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
+                try:
+                    response["journal"] = get_journal.text
+                except AttributeError:
+                    # maybe it is in a different element
+                    journal = article.find("./front/journal-meta/journal-title")
                     try:
-                        get_authors = get_contrib_group.findall(".//name")
-                        authors = []
-                        for author in get_authors:
-                            surname = author.find('surname').text if author.find('surname').text else ''
-                            given_names = author.find('given-names').text if author.find('given-names').text else ''
-                            if surname and given_names:
-                                authors.append(surname + ", " + given_names)
-                            elif surname or given_names:
-                                authors.append(surname + given_names)
-                        response["author"] = '; '.join(authors)
+                        response["journal"] = journal.text
                     except AttributeError:
-                        pass
+                        logging.debug("Journal not found for pmcid {}".format(element["pmcid"]))
 
-                    # get pmid and doi
-                    article_meta = article.findall("./front/article-meta/article-id")
-                    response['doi'] = ''
-                    response['pmid'] = ''
+                # add job_id
+                response["job_id"] = job_id
 
-                    for item in article_meta:
-                        if item.attrib == {'pub-id-type': 'doi'}:
-                            response["doi"] = item.text
-                        elif item.attrib == {'pub-id-type': 'pmid'}:
-                            response["pmid"] = item.text
+                # add pmcid
+                response["pmcid"] = element["pmcid"]
 
-                    # get year
-                    response["year"] = 0
-                    get_year = article.findall("./front/article-meta/pub-date")
-                    pub_type = ['epub', 'ppub', 'pub']
-                    for item in get_year:
-                        if set(pub_type).intersection(item.attrib.values()):
-                            year = int(item.find('year').text) if item.find('year').text else 0
-                            response["year"] = year
+                # add citation
+                response["cited_by"] = element["cited_by"]
 
-                    # get journal
-                    response["journal"] = ''
-                    get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
-                    try:
-                        response["journal"] = get_journal.text
-                    except AttributeError:
-                        # maybe it is in a different element
-                        journal = article.find("./front/journal-meta/journal-title")
-                        try:
-                            response["journal"] = journal.text
-                        except AttributeError:
-                            logging.debug("Journal not found for pmcid {}".format(element["pmcid"]))
+                # add score
+                response['score'] = len(abstract_sentences) + len(body_sentences)
 
-                    # add job_id
-                    response["job_id"] = job_id
-
-                    # add pmcid
-                    response["pmcid"] = element["pmcid"]
-
-                    # add citation
-                    response["cited_by"] = element["cited_by"]
-
-                    # response must have abstract and body
-                    if 'abstract' not in response:
-                        response['abstract'] = ''
-
-                    if 'body' not in response:
-                        response['body'] = ''
-
-                    response['score'] = len(abstract_sentences) + len(body_sentences)
-                    hit_count += 1
-                    results.append(response)
-
-                else:
-                    logging.debug("Job_id {} not found for pmcid {}.".format(job_id, element["pmcid"]))
+                hit_count += 1
+                results.append(response)
 
     if results:
         # save results in DB
