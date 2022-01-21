@@ -15,7 +15,6 @@ please open an issue or pull request.
 6. `docker build -t local-postgres database/local` - this will create an image with postgres databases.
 7. `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres -t local-postgres` - this will create and start an 
 instance of postgres on your local machine's 5432 port.
-8. `python3 consumer/get_xml_files.py` - this will download 105 xml files that will be used in the search
-9. `python3 -m database` - creates necessary database tables
-10. `python3 -m producer` - starts producer server on port 8080
-11. `python3 -m consumer` - starts consumer server on port 8081
+8. `python3 -m database` - creates necessary database tables
+9. `python3 -m producer` - starts producer server on port 8080
+10. `python3 -m consumer` - starts consumer server on port 8081
