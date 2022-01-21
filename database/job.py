@@ -15,7 +15,7 @@ import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Job, JOB_STATUS_CHOICES
+from database.models import Database, Job, JOB_STATUS_CHOICES
 
 
 async def find_job_to_run(engine):
@@ -140,7 +140,7 @@ async def save_hit_count(engine, job_id, hit_count):
     Function to save hit_count for a job.
     :param engine: params to connect to the db
     :param job_id: id of the job
-    :param status: number of hits
+    :param hit_count: number of hits
     :return: None
     """
     try:
@@ -171,3 +171,47 @@ async def get_jobs(engine):
                 raise SQLError("Failed to get jobs") from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in get_jobs()") from e
+
+
+async def search_db_name_with_job_id(engine, job_id, db_name):
+    """
+    Check if this id already exists with this db_name in the database
+    :param engine: params to connect to the db
+    :param job_id: the string to be searched
+    :param db_name: Name of the Expert DB
+    :return: id
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                sql_query = (sa.select([Database.c.id])
+                             .select_from(Database)
+                             .where(Database.c.job_id == job_id, Database.c.name == db_name))
+                async for row in connection.execute(sql_query):
+                    return {"id": row.id}
+            except Exception as e:
+                raise SQLError("Failed to check if value exists for job_id = %s "
+                               "and db_name = %s" % (job_id, db_name)) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in search_db_name_with_job_id() for "
+                                      "job_id = %s and db_name = %s" % (job_id, db_name)) from e
+
+
+async def save_db_with_job_id(engine, job_id, db_name):
+    """
+    Save job_id and database name
+    :param engine: params to connect to the db
+    :param job_id: the string that will be searched
+    :param db_name: database associated with this job_id
+    :return: true in case of success
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                await connection.execute(Database.insert().values(job_id=job_id, name=db_name))
+                return True
+            except Exception as e:
+                raise SQLError("Failed to save DB name for job_id = %s and db_name = %s" % (job_id, db_name)) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in save_db_with_job_id() for "
+                                      "job_id = %s and db_name = %s" % (job_id, db_name)) from e
