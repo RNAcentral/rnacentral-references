@@ -104,7 +104,7 @@ async def articles_list(job_id, page="*"):
         except AttributeError:
             next_page = None
     else:
-        pmcid_list = None
+        pmcid_list = []
         next_page = None
 
     return pmcid_list, next_page
