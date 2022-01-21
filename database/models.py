@@ -105,6 +105,15 @@ Result = sa.Table(
     sa.Column('cited_by', sa.Integer()),
 )
 
+"""Job related to which DB"""
+Database = sa.Table(
+    'database',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('name', sa.String(50)),
+    sa.Column('job_id', sa.String(100), sa.ForeignKey('job.job_id')),
+)
+
 # Migrations
 # ----------
 
@@ -126,6 +135,7 @@ async def migrate(env):
     async with engine:
         async with engine.acquire() as connection:
             await connection.execute('DROP TABLE IF EXISTS result')
+            await connection.execute('DROP TABLE IF EXISTS database')
             await connection.execute('DROP TABLE IF EXISTS job')
             await connection.execute('DROP TABLE IF EXISTS consumer')
 
@@ -168,4 +178,14 @@ async def migrate(env):
                   CONSTRAINT jobid_pmcid UNIQUE (job_id, pmcid))
             ''')
 
+            await connection.execute('''
+                CREATE TABLE database (
+                  id SERIAL PRIMARY KEY,
+                  name VARCHAR(50),
+                  job_id VARCHAR(100),
+                  FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
+                  CONSTRAINT name_job UNIQUE (name, job_id))
+            ''')
+
             await connection.execute('''CREATE INDEX on result (job_id)''')
+            await connection.execute('''CREATE INDEX on database (job_id)''')
