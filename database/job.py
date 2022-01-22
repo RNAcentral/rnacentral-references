@@ -215,3 +215,24 @@ async def save_db_with_job_id(engine, job_id, db_name):
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in save_db_with_job_id() for "
                                       "job_id = %s and db_name = %s" % (job_id, db_name)) from e
+
+
+async def get_database(engine, job_id):
+    """
+    Function to get a list of dbs associated with an id
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :return: list of dbs
+    """
+    try:
+        async with engine.acquire() as connection:
+            results = []
+            sql_query = sa.select([Database.c.name]).select_from(Database).where(Database.c.job_id == job_id)
+            try:
+                async for row in connection.execute(sql_query):
+                    results.append(row.name)
+                return results
+            except Exception as e:
+                raise SQLError("Failed to get dbs for job_id = %s" % job_id) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_database() for job_id = %s" % job_id) from e
