@@ -239,3 +239,22 @@ async def get_database(engine, job_id):
                 raise SQLError("Failed to get dbs for job_id = %s" % job_id) from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in get_database() for job_id = %s" % job_id) from e
+
+
+async def get_primary_id(engine, job_id):
+    """
+    Function to check if the job_id has a primary_id
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :return: primary_id, if any
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                sql_query = sa.select([Job.c.primary_id]).select_from(Job).where(Job.c.job_id == job_id)
+                async for row in connection.execute(sql_query):
+                    return row.primary_id
+            except Exception as e:
+                raise SQLError("Failed to get primary_id for id = %s" % job_id) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_primary_id for job_id = %s" % job_id) from e
