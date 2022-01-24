@@ -37,8 +37,15 @@ async def submit_job(request):
         # get job_id
         job_id = job['job_id']
     else:
+        if "primary_id" in data:
+            # get primary_id
+            primary_id = await search_performed(request.app['engine'], data['primary_id'])
+            primary_id = primary_id['job_id']
+        else:
+            primary_id = None
+
         # save metadata about this job to the database
-        job_id = await save_job(request.app['engine'], data['id'])
+        job_id = await save_job(request.app['engine'], data['id'], primary_id)
 
     if "database" in data:
         # check if this id already exists with this database
