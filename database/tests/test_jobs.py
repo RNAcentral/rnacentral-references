@@ -32,7 +32,8 @@ class SaveJobTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo"
+            job_id="foo",
+            primary_id=None
         )
         assert job_id == "foo"
 
@@ -72,7 +73,8 @@ class FindJobTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo"
+            job_id="foo",
+            primary_id=None
         )
         find_job = await find_job_to_run(self.app['engine'])
         assert find_job[0][0] == job_id
@@ -142,12 +144,14 @@ class GetJobsTestCase(DBTestCase):
     async def test_save_job(self):
         await save_job(
             self.app['engine'],
-            job_id="foo"
+            job_id="foo",
+            primary_id=None
         )
 
         await save_job(
             self.app['engine'],
-            job_id="bar"
+            job_id="bar",
+            primary_id=None
         )
 
         jobs = await get_jobs(self.app['engine'])
@@ -166,7 +170,8 @@ class SaveAndSearchDBAndJobTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo"
+            job_id="foo",
+            primary_id=None
         )
 
         await save_db_with_job_id(
@@ -191,7 +196,8 @@ class GetDBsTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo"
+            job_id="foo",
+            primary_id=None
         )
 
         await save_db_with_job_id(
