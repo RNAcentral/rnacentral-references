@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
 from database.job import find_job_to_run, get_jobs, save_job, save_hit_count, search_performed, set_job_status, \
-    save_db_with_job_id, search_db_name_with_job_id, get_database
+    save_db_with_job_id, search_db_name_with_job_id, get_database, get_primary_id
 from database.tests.test_base import DBTestCase
 
 
@@ -214,3 +214,39 @@ class GetDBsTestCase(DBTestCase):
 
         dbs = await get_database(self.app['engine'], job_id)
         assert dbs == ["db1", "db2"]
+
+
+class GetPrimaryIdTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.GetPrimaryIdTestCase
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+    @unittest_run_loop
+    async def test_save_job(self):
+        job_id = await save_job(
+            self.app['engine'],
+            job_id="foo",
+            primary_id=None
+        )
+
+        job_id_with_primary_id = await save_job(
+            self.app['engine'],
+            job_id="bar",
+            primary_id=job_id
+        )
+
+        primary_id = await get_primary_id(
+            self.app['engine'],
+            job_id=job_id_with_primary_id
+        )
+
+        no_primary_id = await get_primary_id(
+            self.app['engine'],
+            job_id=job_id
+        )
+
+        assert primary_id == job_id
+        assert no_primary_id is None
