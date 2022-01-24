@@ -81,6 +81,7 @@ Job = sa.Table(
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
     sa.Column('hit_count', sa.Integer, nullable=True),
+    sa.Column('primary_id', sa.ForeignKey('job.job_id'), nullable=True),
 )
 
 """Results of a specific Job"""
@@ -153,7 +154,9 @@ async def migrate(env):
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
                   status VARCHAR(10),
-                  hit_count INTEGER)
+                  hit_count INTEGER,
+                  primary_id VARCHAR(100),
+                  FOREIGN KEY (primary_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
             await connection.execute('''
