@@ -13,20 +13,36 @@ database=$2
 
 function submitJob
 {
-  # sett job_id
-  job_id=$1
+  # set job_id and primary_id
+  line=$1
+  IFS=$'|'
+  tmp=($line)
+  job_id="${tmp[0]}"
+  primary_id="${tmp[1]}"
 
-  if [ -z ${database} ]; then
+  if [ -z ${database} ] && [ -z ${primary_id} ]; then
     # submit job (only id)
     curl -X POST \
          -H "Content-Type:application/json" \
          -d "{\"id\": \"${job_id}\"}" \
          http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
-  else
+  elif [ -z ${primary_id} ]; then
     # submit job (id and database)
     curl -X POST \
          -H "Content-Type:application/json" \
          -d "{\"id\": \"${job_id}\", \"database\": \"${database}\"}" \
+         http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
+  elif [ -z ${database} ]; then
+    # submit job (id and primary_id)
+    curl -X POST \
+         -H "Content-Type:application/json" \
+         -d "{\"id\": \"${job_id}\", \"primary_id\": \"${primary_id}\"}" \
+         http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
+  else
+    # submit job (id, database and primary_id)
+    curl -X POST \
+         -H "Content-Type:application/json" \
+         -d "{\"id\": \"${job_id}\", \"database\": \"${database}\", \"primary_id\": \"${primary_id}\"}" \
          http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
   fi
 
