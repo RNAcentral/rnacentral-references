@@ -85,7 +85,7 @@ async def search_index():
 
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
         # get jobs
-        job_ids = await get_jobs(engine)
+        jobs = await get_jobs(engine)
 
         # create directory to store xml files, if necessary
         path_to_xml_files.mkdir(parents=True, exist_ok=True)
@@ -93,13 +93,13 @@ async def search_index():
         # add results
         temp_results = []
 
-        for job in job_ids:
+        for job in jobs:
             # get results
-            results = await get_job_results(engine, job)
+            results = await get_job_results(engine, job["job_id"])
 
             for result in results:
                 temp_results.append({
-                    "job_id": job,
+                    "job_id": job["job_id"],
                     "title": result["title"],
                     "title_value": str(result['title_value']),
                     "abstract": result['abstract'],
