@@ -57,8 +57,8 @@ async def search_performed(engine, value):
     try:
         async with engine.acquire() as connection:
             try:
-                sql_query = sa.select([Job.c.job_id]).select_from(Job).where(Job.c.job_id == value)
-                async for row in connection.execute(sql_query):
+                sql_query = sa.text('''SELECT job_id FROM job WHERE LOWER(job_id)=:value''')
+                async for row in connection.execute(sql_query, value=value.lower()):
                     return {"job_id": row.job_id}
             except Exception as e:
                 raise SQLError("Failed to check if value exists for id = %s" % value) from e
@@ -159,7 +159,7 @@ async def save_hit_count(engine, job_id, hit_count):
 
 async def get_jobs(engine):
     """
-    Function to get job ids.
+    Function to get job info.
     :param engine: params to connect to the db
     :return: list of jobs
     """
@@ -167,8 +167,8 @@ async def get_jobs(engine):
         async with engine.acquire() as connection:
             results = []
             try:
-                async for row in connection.execute(sa.select([Job.c.job_id]).select_from(Job)):
-                    results.append(row.job_id)
+                async for row in connection.execute(sa.select([Job.c.job_id, Job.c.hit_count]).select_from(Job)):
+                    results.append({"job_id": row.job_id, "hit_count": row.hit_count})
                 return results
             except Exception as e:
                 raise SQLError("Failed to get jobs") from e
