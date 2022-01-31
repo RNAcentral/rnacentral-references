@@ -197,8 +197,13 @@ async def seek_references(engine, job_id, consumer_ip):
 
                 # get title
                 get_title = article.find("./front/article-meta/title-group/article-title")
-                title = ''.join(get_title.itertext()).strip()
-                response["title"] = title
+                try:
+                    title = ''.join(get_title.itertext()).strip()
+                    response["title"] = title
+                except AttributeError:
+                    # skip the current iteration
+                    logging.debug("Title not found for pmcid {} and job_id {}".format(element["pmcid"], job_id))
+                    continue
 
                 # check if the title has the job_id
                 response["title_value"] = True if job_id.lower().split(":")[0] in title.lower() else False
