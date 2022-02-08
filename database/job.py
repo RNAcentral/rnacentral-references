@@ -66,16 +66,14 @@ async def search_performed(engine, value):
         raise DatabaseConnectionError("Failed to open DB connection in search_performed() for id = %s" % value) from e
 
 
-async def save_job(engine, job_id, primary_id):
+async def save_job(engine, job_id):
     """
     Save metadata in the database
     :param engine: params to connect to the db
     :param job_id: the string that will be searched
-    :param primary_id: job_id can be related to another job_id
     :return: job_id
     """
     try:
-        print(primary_id)
         async with engine.acquire() as connection:
             try:
                 await connection.execute(
@@ -83,7 +81,6 @@ async def save_job(engine, job_id, primary_id):
                         job_id=job_id,
                         submitted=datetime.datetime.now(),
                         status=JOB_STATUS_CHOICES.pending,
-                        primary_id=primary_id
                     )
                 )
                 return job_id
@@ -176,85 +173,72 @@ async def get_jobs(engine):
         raise DatabaseConnectionError("Failed to open DB connection in get_jobs()") from e
 
 
-async def search_db_name_with_job_id(engine, job_id, db_name):
+async def search_metadata(engine, job_id, db_name, primary_id):
     """
-    Check if this id already exists with this db_name in the database
+    Check if this id already exists with this database and primary_id
     :param engine: params to connect to the db
     :param job_id: the string to be searched
-    :param db_name: Name of the Expert DB
+    :param db_name: name of the Expert DB
+    :param primary_id: primary Id of this job_id
     :return: id
     """
     try:
         async with engine.acquire() as connection:
             try:
-                sql_query = (sa.select([Database.c.id])
+                sql_query = (sa.select([Database.c.id, Database.c.primary_id])
                              .select_from(Database)
-                             .where(Database.c.job_id == job_id, Database.c.name == db_name))
+                             .where(Database.c.job_id == job_id, Database.c.name == db_name,
+                                    Database.c.primary_id == primary_id))
                 async for row in connection.execute(sql_query):
-                    return {"id": row.id}
+                    return {"id": row.id, "primary_id": row.primary_id}
             except Exception as e:
                 raise SQLError("Failed to check if value exists for job_id = %s "
                                "and db_name = %s" % (job_id, db_name)) from e
     except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in search_db_name_with_job_id() for "
-                                      "job_id = %s and db_name = %s" % (job_id, db_name)) from e
+        raise DatabaseConnectionError("Failed to open DB connection in search_metadata() for job_id = %s, "
+                                      "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
 
 
-async def save_db_with_job_id(engine, job_id, db_name):
+async def save_metadata(engine, job_id, db_name, primary_id):
     """
-    Save job_id and database name
+    Save job_id, database name and primary_id
     :param engine: params to connect to the db
     :param job_id: the string that will be searched
     :param db_name: database associated with this job_id
+    :param primary_id: primary Id of this job_id
     :return: true in case of success
     """
     try:
         async with engine.acquire() as connection:
             try:
-                await connection.execute(Database.insert().values(job_id=job_id, name=db_name))
+                await connection.execute(Database.insert().values(job_id=job_id, name=db_name, primary_id=primary_id))
                 return True
             except Exception as e:
-                raise SQLError("Failed to save DB name for job_id = %s and db_name = %s" % (job_id, db_name)) from e
+                raise SQLError("Failed to save metadata job_id = %s, "
+                               "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
     except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in save_db_with_job_id() for "
-                                      "job_id = %s and db_name = %s" % (job_id, db_name)) from e
+        raise DatabaseConnectionError("Failed to open DB connection in save_metadata() for job_id = %s, "
+                                      "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
 
 
-async def get_database(engine, job_id):
+async def get_db_and_primary_id(engine, job_id):
     """
-    Function to get a list of dbs associated with an id
+    Function to get db name and primary_id (used by search_index_metadata)
     :param engine: params to connect to the db
     :param job_id: id of the job
-    :return: list of dbs
+    :return: list of db and primary_id
     """
     try:
         async with engine.acquire() as connection:
             results = []
-            sql_query = sa.select([Database.c.name]).select_from(Database).where(Database.c.job_id == job_id)
+            sql_query = (sa.select([Database.c.name, Database.c.primary_id])
+                         .select_from(Database)
+                         .where(Database.c.job_id == job_id))
             try:
                 async for row in connection.execute(sql_query):
-                    results.append(row.name)
+                    results.append({"name": row.name, "primary_id": row.primary_id})
                 return results
             except Exception as e:
                 raise SQLError("Failed to get dbs for job_id = %s" % job_id) from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in get_database() for job_id = %s" % job_id) from e
-
-
-async def get_primary_id(engine, job_id):
-    """
-    Function to check if the job_id has a primary_id
-    :param engine: params to connect to the db
-    :param job_id: id of the job
-    :return: primary_id, if any
-    """
-    try:
-        async with engine.acquire() as connection:
-            try:
-                sql_query = sa.select([Job.c.primary_id]).select_from(Job).where(Job.c.job_id == job_id)
-                async for row in connection.execute(sql_query):
-                    return row.primary_id
-            except Exception as e:
-                raise SQLError("Failed to get primary_id for id = %s" % job_id) from e
-    except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in get_primary_id for job_id = %s" % job_id) from e
