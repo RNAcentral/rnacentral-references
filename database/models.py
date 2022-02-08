@@ -81,7 +81,6 @@ Job = sa.Table(
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
     sa.Column('hit_count', sa.Integer, nullable=True),
-    sa.Column('primary_id', sa.ForeignKey('job.job_id'), nullable=True),
 )
 
 """Results of a specific Job"""
@@ -113,6 +112,7 @@ Database = sa.Table(
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('name', sa.String(50)),
     sa.Column('job_id', sa.String(100), sa.ForeignKey('job.job_id')),
+    sa.Column('primary_id', sa.String(100), sa.ForeignKey('job.job_id'), nullable=True),
 )
 
 # Migrations
@@ -154,9 +154,7 @@ async def migrate(env):
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
                   status VARCHAR(10),
-                  hit_count INTEGER,
-                  primary_id VARCHAR(100),
-                  FOREIGN KEY (primary_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
+                  hit_count INTEGER)
             ''')
 
             await connection.execute('''
@@ -186,8 +184,10 @@ async def migrate(env):
                   id SERIAL PRIMARY KEY,
                   name VARCHAR(50),
                   job_id VARCHAR(100),
+                  primary_id VARCHAR(100),
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
-                  CONSTRAINT name_job UNIQUE (name, job_id))
+                  FOREIGN KEY (primary_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
+                  CONSTRAINT name_job UNIQUE (name, job_id, primary_id))
             ''')
 
             await connection.execute('''CREATE INDEX on result (job_id)''')
