@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
 from database.job import find_job_to_run, get_jobs, save_job, save_hit_count, search_performed, set_job_status, \
-    save_db_with_job_id, search_db_name_with_job_id, get_database, get_primary_id
+    save_metadata, search_metadata, get_db_and_primary_id
 from database.tests.test_base import DBTestCase
 
 
@@ -32,8 +32,7 @@ class SaveJobTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo",
-            primary_id=None
+            job_id="foo"
         )
         assert job_id == "foo"
 
@@ -73,8 +72,7 @@ class FindJobTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo",
-            primary_id=None
+            job_id="foo"
         )
         find_job = await find_job_to_run(self.app['engine'])
         assert find_job[0][0] == job_id
@@ -144,18 +142,17 @@ class GetJobsTestCase(DBTestCase):
     async def test_save_job(self):
         await save_job(
             self.app['engine'],
-            job_id="foo",
-            primary_id=None
+            job_id="foo"
         )
 
         await save_job(
             self.app['engine'],
-            job_id="bar",
-            primary_id=None
+            job_id="bar"
         )
 
         jobs = await get_jobs(self.app['engine'])
-        assert jobs == ["foo", "bar"]
+        print(jobs)
+        assert jobs == [{'job_id': 'foo', 'hit_count': None}, {'job_id': 'bar', 'hit_count': None}]
 
 
 class SaveAndSearchDBAndJobTestCase(DBTestCase):
@@ -170,17 +167,17 @@ class SaveAndSearchDBAndJobTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo",
+            job_id="foo.bar"
+        )
+
+        await save_metadata(
+            self.app['engine'],
+            job_id=job_id,
+            db_name="bar.foo",
             primary_id=None
         )
 
-        await save_db_with_job_id(
-            self.app['engine'],
-            job_id=job_id,
-            db_name="bar"
-        )
-
-        find_job_and_db = await search_db_name_with_job_id(self.app['engine'], "foo", "bar")
+        find_job_and_db = await search_metadata(self.app['engine'], "foo.bar", "bar.foo", None)
         assert find_job_and_db is not None
 
 
@@ -196,24 +193,25 @@ class GetDBsTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo",
+            job_id="foo"
+        )
+
+        await save_metadata(
+            self.app['engine'],
+            job_id=job_id,
+            db_name="db1",
             primary_id=None
         )
 
-        await save_db_with_job_id(
+        await save_metadata(
             self.app['engine'],
             job_id=job_id,
-            db_name="db1"
+            db_name="db2",
+            primary_id=None
         )
 
-        await save_db_with_job_id(
-            self.app['engine'],
-            job_id=job_id,
-            db_name="db2"
-        )
-
-        dbs = await get_database(self.app['engine'], job_id)
-        assert dbs == ["db1", "db2"]
+        dbs = await get_db_and_primary_id(self.app['engine'], job_id)
+        assert dbs == [{'name': 'db1', 'primary_id': None}, {'name': 'db2', 'primary_id': None}]
 
 
 class GetPrimaryIdTestCase(DBTestCase):
@@ -228,25 +226,25 @@ class GetPrimaryIdTestCase(DBTestCase):
     async def test_save_job(self):
         job_id = await save_job(
             self.app['engine'],
-            job_id="foo",
-            primary_id=None
+            job_id="foo"
         )
 
-        job_id_with_primary_id = await save_job(
+        job_id_2 = await save_job(
             self.app['engine'],
-            job_id="bar",
-            primary_id=job_id
+            job_id="bar"
         )
 
-        primary_id = await get_primary_id(
+        await save_metadata(self.app['engine'], job_id_2, "db_name", job_id)
+
+        primary_id = await get_db_and_primary_id(
             self.app['engine'],
-            job_id=job_id_with_primary_id
+            job_id=job_id_2
         )
 
-        no_primary_id = await get_primary_id(
+        no_primary_id = await get_db_and_primary_id(
             self.app['engine'],
             job_id=job_id
         )
 
-        assert primary_id == job_id
-        assert no_primary_id is None
+        assert primary_id[0]["primary_id"] == job_id
+        assert no_primary_id == []
