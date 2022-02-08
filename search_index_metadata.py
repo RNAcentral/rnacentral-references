@@ -23,7 +23,7 @@ import xml.etree.ElementTree as ET
 from aiopg.sa import create_engine
 from dotenv import load_dotenv
 
-from database.job import get_jobs, get_database, get_primary_id
+from database.job import get_jobs, get_db_and_primary_id
 from producer.settings import path_to_xml_files
 
 load_dotenv()
@@ -46,11 +46,8 @@ async def create_xml_file(results):
         ET.SubElement(additional_fields, "field", name="entry_type").text = "Metadata"
         ET.SubElement(additional_fields, "field", name="job_id").text = item["job_id"]
         ET.SubElement(additional_fields, "field", name="number_of_articles").text = item["hit_count"]
-        if "dbs" in item:
-            for db in item["dbs"]:
-                ET.SubElement(additional_fields, "field", name="database").text = db
-        if "primary_id" in item:
-            ET.SubElement(additional_fields, "field", name="primary_id").text = item["primary_id"]
+        ET.SubElement(additional_fields, "field", name="database").text = item["db"]
+        ET.SubElement(additional_fields, "field", name="primary_id").text = item["primary_id"]
 
     ET.SubElement(database, "entry_count").text = str(len(results))
 
@@ -86,33 +83,16 @@ async def search_index():
         temp_results = []
 
         for job in jobs:
-            # get dbs
-            dbs = await get_database(engine, job["job_id"])
+            # get db and primary_id
+            items = await get_db_and_primary_id(engine, job["job_id"])
 
-            # get primary id
-            primary_id = await get_primary_id(engine, job["job_id"])
-
-            if dbs and primary_id:
+            for item in items:
                 temp_results.append({
                     "job_id": job["job_id"],
                     "hit_count": str(job["hit_count"]),
-                    "dbs": dbs,
-                    "primary_id": primary_id
+                    "db": item["name"],
+                    "primary_id": item["primary_id"]
                 })
-            elif dbs:
-                temp_results.append({
-                    "job_id": job["job_id"],
-                    "hit_count": str(job["hit_count"]),
-                    "dbs": dbs
-                })
-            elif primary_id:
-                temp_results.append({
-                    "job_id": job["job_id"],
-                    "hit_count": str(job["hit_count"]),
-                    "primary_id": primary_id
-                })
-            else:
-                temp_results.append({"job_id": job["job_id"], "hit_count": str(job["hit_count"])})
 
             if len(temp_results) > 300000:
                 await create_xml_file(temp_results)
