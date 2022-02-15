@@ -125,7 +125,7 @@ async def seek_references(engine, job_id, consumer_ip):
     """
     results = []
     start = datetime.datetime.now()
-    regex = r"(^|\s|\()" + re.escape(job_id.lower().split(":")[0]) + "($|[\s.,;?)])"
+    regex = r"(^|\s|\()" + re.escape(job_id.lower()) + "($|[\s.,;?)])"
     pmcid_list = []
     hit_count = 0
 
@@ -206,7 +206,7 @@ async def seek_references(engine, job_id, consumer_ip):
                     continue
 
                 # check if the title has the job_id
-                response["title_value"] = True if job_id.lower().split(":")[0] in title.lower() else False
+                response["title_value"] = True if job_id.lower() in title.lower() else False
 
                 # check if the abstract has the job_id
                 get_abstract_tags = article.findall(".//abstract//*")
