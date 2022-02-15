@@ -39,6 +39,7 @@
       dest: /srv/reference
       rsync_opts:
         - "--exclude=/ansible"
+        - "--exclude=/get_ids"
         - "--exclude=/consumer/files/*"
         - "--exclude=/__pycache__"
         - "--exclude=/.*"
