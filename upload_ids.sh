@@ -1,22 +1,24 @@
 #!/bin/bash
 # Script to submit ids to RNAcentral-reference
 #
-# Usage:   ./upload.sh [file] [database] [primary_id]
+# Usage:   ./upload.sh [file] [database]
 #
-# Using as an example a file containing the following lines:
-#       hsa-miR-410-3p|MIMAT0002171
-#       sbi-MIR168|MI0001556
-#
-# To search with the primary id (MIMAT0002171 and MI0001556), run the command:
-# Example: ./upload.sh file.txt mirbase true
-#
-# To search with other ids (hsa-miR-410-3p and sbi-MIR168), but registering the primary id, run the command:
-# Example: ./upload.sh file.txt mirbase
+# The file can contain job_id, primary_id and urs_taxid.
+# Each line in the file must have at least a job_id or a primary_id.
+# Example:
+#       5_8S_rRNA|RF00002|URS000019A91D_7230
+#       Y_RNA|RF00019|
+#       Ysr224||
+#       ZMP-ZTP||URS0001BC94F0_256318
+#       |RF01750|URS0001BC834A_408172
+#       |RF02770|
+
 
 # set file and database
 file=$1
 database=$2
 primary=$3
+upi=$4
 
 # create folder
 [ ! -d submitted ] && mkdir submitted
@@ -27,40 +29,56 @@ function submitJob
   IFS=$'|'
   tmp=($line)
 
-  # set job_id and primary_id (optional)
-  if [ -z ${primary} ]; then
-    # search id and register primary_id
+  if [ -z ${primary} ] && [ -z ${upi} ]; then
+    # set job_id, primary_id and urs
+    job_id="${tmp[0]}"
+    primary_id="${tmp[1]}"
+    urs="${tmp[2]}"
+  elif [ -z ${primary} ]; then
+    # set job_id and primary_id
     job_id="${tmp[0]}"
     primary_id="${tmp[1]}"
   else
-    # do the search using the primary_id
+    # set job_id
     job_id="${tmp[1]}"
   fi
 
   # submit search according to the parameters used
-  if [ -z ${database} ] && [ -z ${primary_id} ]; then
-    # submit job (only id)
-    curl -X POST \
-         -H "Content-Type:application/json" \
-         -d "{\"id\": \"${job_id}\"}" \
-         http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
-  elif [ -z ${primary_id} ]; then
+  if [ -z ${primary_id} ] && [ -z ${urs} ]; then
     # submit job (id and database)
     curl -X POST \
          -H "Content-Type:application/json" \
          -d "{\"id\": \"${job_id}\", \"database\": \"${database}\"}" \
          http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
-  elif [ -z ${database} ]; then
-    # submit job (id and primary_id)
+  elif [ -z ${job_id} ] && [ -z ${urs} ]; then
+    # submit job (primary_id and database)
     curl -X POST \
          -H "Content-Type:application/json" \
-         -d "{\"id\": \"${job_id}\", \"primary_id\": \"${primary_id}\"}" \
+         -d "{\"id\": \"${primary_id}\", \"database\": \"${database}\"}" \
+         http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
+  elif [ -z ${urs} ]; then
+    # submit job (id, primary_id and database)
+    curl -X POST \
+         -H "Content-Type:application/json" \
+         -d "{\"id\": \"${job_id}\", \"primary_id\": \"${primary_id}\", \"database\": \"${database}\"}" \
+         http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
+  elif [ -z ${primary_id} ]; then
+    # submit job (id, urs and database)
+    curl -X POST \
+         -H "Content-Type:application/json" \
+         -d "{\"id\": \"${job_id}\", \"database\": \"${database}\", \"urs\": \"${urs}\"}" \
+         http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
+  elif [ -z ${job_id} ]; then
+    # submit job (primary_id, urs and database)
+    curl -X POST \
+         -H "Content-Type:application/json" \
+         -d "{\"id\": \"${primary_id}\", \"database\": \"${database}\", \"urs\": \"${urs}\"}" \
          http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
   else
-    # submit job (id, database and primary_id)
+    # submit job (id, database, primary_id, urs)
     curl -X POST \
          -H "Content-Type:application/json" \
-         -d "{\"id\": \"${job_id}\", \"database\": \"${database}\", \"primary_id\": \"${primary_id}\"}" \
+         -d "{\"id\": \"${job_id}\", \"database\": \"${database}\", \"primary_id\": \"${primary_id}\", \"urs\": \"${urs}\"}" \
          http://45.88.80.122:8080/api/submit-job && echo ${job_id} >> submitted/${file};
   fi
 
