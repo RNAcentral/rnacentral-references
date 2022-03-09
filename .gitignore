@@ -4,4 +4,5 @@ consumer/files/*
 ansible/ssh/*
 ansible/hosts
 producer/files/*
+get_ids
 .env
