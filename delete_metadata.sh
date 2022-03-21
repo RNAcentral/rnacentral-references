@@ -17,8 +17,8 @@ function deleteMetadata
   IFS="|" read gene primary_id urs <<< "$line"
 
   # delete data
-  psql -U $username -d $dbname -c "DELETE FROM database WHERE job_id='$gene' and name='rnacentral' and primary_id='$urs'"
-  psql -U $username -d $dbname -c "DELETE FROM database WHERE job_id='$primary_id' and name='rnacentral' and primary_id='$urs'"
+  psql -U $username -d $dbname -c "DELETE FROM database WHERE LOWER(job_id)='${gene,,}' and name='rnacentral' and primary_id='$urs'"
+  psql -U $username -d $dbname -c "DELETE FROM database WHERE LOWER(job_id)='${primary_id,,}' and name='rnacentral' and primary_id='$urs'"
 }
 
 # loop through the file
