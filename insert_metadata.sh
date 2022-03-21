@@ -21,8 +21,8 @@ function insertMetadata
   IFS="|" read gene primary_id urs <<< "$line"
 
   # insert data
-  psql -U $username -d $dbname -c "INSERT INTO database (job_id, name, primary_id) VALUES ('$gene', '$db', '$urs')"
-  psql -U $username -d $dbname -c "INSERT INTO database (job_id, name, primary_id) VALUES ('$primary_id', '$db', '$urs')"
+  psql -U $username -d $dbname -c "INSERT INTO database (job_id, name, primary_id) VALUES ((SELECT job_id FROM job WHERE LOWER(job_id)='${gene,,}'), '$db', '$urs')"
+  psql -U $username -d $dbname -c "INSERT INTO database (job_id, name, primary_id) VALUES ((SELECT job_id FROM job WHERE LOWER(job_id)='${primary_id,,}'), '$db', '$urs')"
 }
 
 # loop through the file
