@@ -15,8 +15,7 @@ import sqlalchemy as sa
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.job import find_job_to_run, get_jobs, save_job, save_hit_count, search_performed, set_job_status, \
-    save_metadata, search_metadata
+from database.job import find_job_to_run, get_jobs, save_job, save_hit_count, search_performed, set_job_status
 from database.tests.test_base import DBTestCase
 
 
@@ -153,29 +152,3 @@ class GetJobsTestCase(DBTestCase):
         jobs = await get_jobs(self.app['engine'])
         print(jobs)
         assert jobs == [{'job_id': 'foo', 'hit_count': None}, {'job_id': 'bar', 'hit_count': None}]
-
-
-class SaveAndSearchDBAndJobTestCase(DBTestCase):
-    """
-    Run this test with the following command:
-    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.SaveAndSearchDBAndJobTestCase
-    """
-    async def setUpAsync(self):
-        await super().setUpAsync()
-
-    @unittest_run_loop
-    async def test_save_job(self):
-        job_id = await save_job(
-            self.app['engine'],
-            job_id="foo.bar"
-        )
-
-        await save_metadata(
-            self.app['engine'],
-            job_id=job_id,
-            db_name="bar.foo",
-            primary_id=None
-        )
-
-        find_job_and_db = await search_metadata(self.app['engine'], "foo.bar", "bar.foo", None)
-        assert find_job_and_db is not None
