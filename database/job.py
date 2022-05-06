@@ -197,25 +197,3 @@ async def search_metadata(engine, job_id, db_name, primary_id):
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in search_metadata() for job_id = %s, "
                                       "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
-
-
-async def save_metadata(engine, job_id, db_name, primary_id):
-    """
-    Save job_id, database name and primary_id
-    :param engine: params to connect to the db
-    :param job_id: the string that will be searched
-    :param db_name: database associated with this job_id
-    :param primary_id: primary Id of this job_id
-    :return: true in case of success
-    """
-    try:
-        async with engine.acquire() as connection:
-            try:
-                await connection.execute(Database.insert().values(job_id=job_id, name=db_name, primary_id=primary_id))
-                return True
-            except Exception as e:
-                raise SQLError("Failed to save metadata job_id = %s, "
-                               "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
-    except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in save_metadata() for job_id = %s, "
-                                      "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
