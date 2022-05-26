@@ -1,4 +1,4 @@
-- hosts: producer
+- hosts: postgres
   gather_facts: Yes
   remote_user: centos
   become: true
@@ -6,8 +6,9 @@
   vars:
     ansible_ssh_private_key_file: "ssh/sequence_search_rsa"
   tasks:
-    - name: Drop the database and re-create it
-      shell: |
-        source /srv/reference/venv/bin/activate
-        cd /srv/reference
-        ENVIRONMENT=PRODUCTION python -m database
+    - name: Create database
+      postgresql_db:
+        state: present
+        name: "reference"
+      become: yes
+      become_user: postgres
