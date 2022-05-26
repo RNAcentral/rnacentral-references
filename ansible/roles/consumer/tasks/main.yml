@@ -53,12 +53,6 @@
       virtualenv_command: /usr/local/bin/python3.9 -m venv
     tags: [ pip ]
 
-  - name: Install textblob.download_corpora
-    shell: |
-      source /srv/reference/venv/bin/activate
-      python -m textblob.download_corpora
-    tags: [ pip ]
-
   - name: Chown reference code
     command: "chown -R centos:centos /srv/reference"
     changed_when: false
