@@ -99,7 +99,7 @@ async def search_index():
 
             for result in results:
                 temp_results.append({
-                    "job_id": job["job_id"],
+                    "job_id": job["display_id"],
                     "title": result["title"],
                     "title_value": str(result['title_value']),
                     "abstract": result['abstract'],
