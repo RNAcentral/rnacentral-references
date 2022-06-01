@@ -41,7 +41,7 @@ class SubmitJobTestCase(AioHTTPTestCase):
         async with self.client.post(path='/api/submit-job', data=data) as response:
             assert response.status == 201
             text = await response.text()
-            assert text == '{"job_id": "FOO.BAR"}'
+            assert text == '{"job_id": "foo.bar"}'
 
     @unittest_run_loop
     async def test_submit_job_post_fail(self):

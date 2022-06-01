@@ -33,7 +33,7 @@ class SaveMetadataTestCase(DBTestCase):
         )
         urs = await save_job(
             self.app['engine'],
-            job_id="URS001"
+            job_id="urs001"
         )
         results = [
             {"job_id": job_id, "name": "rnacentral", "primary_id": urs},

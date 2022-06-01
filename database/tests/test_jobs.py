@@ -88,7 +88,7 @@ class SetJobStatusTestCase(DBTestCase):
         async with self.app['engine'].acquire() as connection:
             await connection.execute(
                 Job.insert().values(
-                    job_id='FOO',
+                    job_id='foo',
                     submitted=datetime.datetime.now(),
                     status=JOB_STATUS_CHOICES.pending
                 )
@@ -96,8 +96,8 @@ class SetJobStatusTestCase(DBTestCase):
 
     @unittest_run_loop
     async def test_set_job_status_started(self):
-        job = await set_job_status(self.app['engine'], 'FOO', JOB_STATUS_CHOICES.started)
-        assert job == 'FOO'
+        job = await set_job_status(self.app['engine'], 'foo', JOB_STATUS_CHOICES.started)
+        assert job == 'foo'
 
 
 class SaveHitCountTestCase(DBTestCase):
@@ -111,7 +111,7 @@ class SaveHitCountTestCase(DBTestCase):
         async with self.app['engine'].acquire() as connection:
             await connection.execute(
                 Job.insert().values(
-                    job_id='FOO',
+                    job_id='testHitCount',
                     submitted=datetime.datetime.now(),
                     status=JOB_STATUS_CHOICES.pending
                 )
@@ -119,13 +119,13 @@ class SaveHitCountTestCase(DBTestCase):
 
     @unittest_run_loop
     async def test_save_hit_count(self):
-        await save_hit_count(self.app['engine'], 'foo', 10)
+        await save_hit_count(self.app['engine'], 'testHitCount', 10)
 
         async with self.app['engine'].acquire() as connection:
             query = sa.text('''SELECT hit_count FROM job WHERE job_id=:job_id''')
 
-            async for row in await connection.execute(query, job_id='foo'):
-                assert row.id is 10
+            async for row in await connection.execute(query, job_id='testHitCount'):
+                assert row.hit_count is 10
                 break
 
 
@@ -150,5 +150,4 @@ class GetJobsTestCase(DBTestCase):
         )
 
         jobs = await get_jobs(self.app['engine'])
-        print(jobs)
         assert jobs == [{'job_id': 'foo', 'hit_count': None}, {'job_id': 'bar', 'hit_count': None}]
