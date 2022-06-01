@@ -78,7 +78,8 @@ async def save_job(engine, job_id):
             try:
                 await connection.execute(
                     Job.insert().values(
-                        job_id=job_id,
+                        job_id=job_id.lower(),
+                        display_id=job_id,
                         submitted=datetime.datetime.now(),
                         status=JOB_STATUS_CHOICES.pending,
                     )
