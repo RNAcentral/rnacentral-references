@@ -141,13 +141,13 @@ class GetJobsTestCase(DBTestCase):
     async def test_save_job(self):
         await save_job(
             self.app['engine'],
-            job_id="foo"
+            job_id="FOO"
         )
 
         await save_job(
             self.app['engine'],
-            job_id="bar"
+            job_id="Bar"
         )
 
         jobs = await get_jobs(self.app['engine'])
-        assert jobs == [{'job_id': 'foo', 'hit_count': None}, {'job_id': 'bar', 'hit_count': None}]
+        assert jobs == [{'job_id': 'foo', 'display_id': 'FOO'}, {'job_id': 'bar', 'display_id': 'Bar'}]
