@@ -57,7 +57,7 @@ async def search_performed(engine, value):
     try:
         async with engine.acquire() as connection:
             try:
-                sql_query = sa.text('''SELECT job_id FROM job WHERE LOWER(job_id)=:value''')
+                sql_query = sa.text('''SELECT job_id FROM job WHERE job_id=:value''')
                 async for row in connection.execute(sql_query, value=value.lower()):
                     return {"job_id": row.job_id}
             except Exception as e:
