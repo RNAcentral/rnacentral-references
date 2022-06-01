@@ -165,8 +165,8 @@ async def get_jobs(engine):
         async with engine.acquire() as connection:
             results = []
             try:
-                async for row in connection.execute(sa.select([Job.c.job_id, Job.c.hit_count]).select_from(Job)):
-                    results.append({"job_id": row.job_id, "hit_count": row.hit_count})
+                async for row in connection.execute(sa.select([Job.c.job_id, Job.c.display_id]).select_from(Job)):
+                    results.append({"job_id": row.job_id, "display_id": row.display_id})
                 return results
             except Exception as e:
                 raise SQLError("Failed to get jobs") from e
