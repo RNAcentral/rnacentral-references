@@ -12,8 +12,8 @@ limitations under the License.
 """
 
 from aiohttp.test_utils import unittest_run_loop
-from database.job import save_job, search_metadata
-from database.metadata import metadata
+from database.job import save_job
+from database.metadata import metadata, search_metadata
 from database.tests.test_base import DBTestCase
 
 

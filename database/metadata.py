@@ -11,6 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import psycopg2
+import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
 from database.models import Database
@@ -31,3 +32,29 @@ async def metadata(engine, results):
                 raise SQLError("Failed to save metadata in the database") from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in metadata function") from e
+
+
+async def search_metadata(engine, job_id, db_name, primary_id):
+    """
+    Check if this id already exists with this database and primary_id
+    :param engine: params to connect to the db
+    :param job_id: the string to be searched
+    :param db_name: name of the Expert DB
+    :param primary_id: primary Id of this job_id
+    :return: id
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                sql_query = (sa.select([Database.c.id])
+                             .select_from(Database)
+                             .where(Database.c.job_id == job_id, Database.c.name == db_name,
+                                    Database.c.primary_id == primary_id))
+                async for row in connection.execute(sql_query):
+                    return {"id": row.id}
+            except Exception as e:
+                raise SQLError("Failed to check if value exists for job_id = %s "
+                               "and db_name = %s" % (job_id, db_name)) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in search_metadata() for job_id = %s, "
+                                      "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e

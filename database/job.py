@@ -172,29 +172,3 @@ async def get_jobs(engine):
                 raise SQLError("Failed to get jobs") from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in get_jobs()") from e
-
-
-async def search_metadata(engine, job_id, db_name, primary_id):
-    """
-    Check if this id already exists with this database and primary_id
-    :param engine: params to connect to the db
-    :param job_id: the string to be searched
-    :param db_name: name of the Expert DB
-    :param primary_id: primary Id of this job_id
-    :return: id
-    """
-    try:
-        async with engine.acquire() as connection:
-            try:
-                sql_query = (sa.select([Database.c.id, Database.c.primary_id])
-                             .select_from(Database)
-                             .where(Database.c.job_id == job_id, Database.c.name == db_name,
-                                    Database.c.primary_id == primary_id))
-                async for row in connection.execute(sql_query):
-                    return {"id": row.id, "primary_id": row.primary_id}
-            except Exception as e:
-                raise SQLError("Failed to check if value exists for job_id = %s "
-                               "and db_name = %s" % (job_id, db_name)) from e
-    except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in search_metadata() for job_id = %s, "
-                                      "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
