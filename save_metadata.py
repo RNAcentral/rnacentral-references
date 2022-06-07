@@ -18,8 +18,7 @@ import os
 from aiopg.sa import create_engine
 from dotenv import load_dotenv
 
-from database.job import search_performed
-from database.metadata import metadata
+from database.metadata import metadata, search_metadata
 
 load_dotenv()
 
@@ -52,59 +51,64 @@ async def save_metadata():
 
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
         results = []
+        temp_job_id = None
+        temp_primary_id = None
+
         with open(filename, "r") as input_file:
-            with open(db_name + "_missing_ids.txt", "w") as output_file:
-                while line := input_file.readline():
-                    line = line.rstrip()
-                    line = line.split('|')
-                    if len(line) == 3:
-                        # check if these ids have already been searched
-                        job_id = await search_performed(engine, line[0].lower())
-                        primary_id = await search_performed(engine, line[1].lower())
-                        urs = await search_performed(engine, line[2].lower())
+            while line := input_file.readline():
+                line = line.rstrip()
+                line = line.split('|')
+                job_id = line[0].lower()
 
-                        if job_id and primary_id and urs:
-                            job_id = job_id['job_id']
-                            primary_id = primary_id['job_id']
-                            urs = urs['job_id']
+                if len(line) == 3:
+                    primary_id = line[1].lower()
 
-                            # create metadata
-                            results.append({"job_id": urs, "name": "rnacentral", "primary_id": None})
+                    # create metadata
+                    if db_name == 'rfam':
+                        if primary_id and primary_id != temp_primary_id:
                             results.append({"job_id": primary_id, "name": db_name, "primary_id": None})
-                            results.append({"job_id": primary_id, "name": "rnacentral", "primary_id": urs})
-                            results.append({"job_id": job_id, "name": "rnacentral", "primary_id": urs})
+                        if job_id and job_id != temp_job_id:
                             results.append({"job_id": job_id, "name": db_name, "primary_id": primary_id})
-                        else:
-                            # add missing ids to output_file
-                            if not job_id:
-                                output_file.write(line[0] + '\n')
-                            if not primary_id:
-                                output_file.write(line[1] + '\n')
-                            if not urs:
-                                output_file.write(line[2] + '\n')
+                        temp_job_id = job_id
+                        temp_primary_id = primary_id if len(line) == 3 else None
+
+                    elif db_name == 'refseq' or db_name == 'wormbase':
+                        # TODO: Check if it is still necessary to query the database.
+                        # The list of ids has been updated and duplicate ids have been removed.
+                        if primary_id and not await search_metadata(engine, primary_id, db_name, None):
+                            results.append({"job_id": primary_id, "name": db_name, "primary_id": None})
+                        if job_id and not await search_metadata(engine, job_id, db_name, primary_id):
+                            results.append({"job_id": job_id, "name": db_name, "primary_id": primary_id})
 
                     else:
-                        # check if these ids have already been searched
-                        job_id = await search_performed(engine, line[0].lower())
-                        urs = await search_performed(engine, line[1].lower())
+                        results.append({"job_id": primary_id, "name": db_name, "primary_id": None})
+                        results.append({"job_id": job_id, "name": db_name, "primary_id": primary_id})
 
-                        if job_id and urs:
-                            job_id = job_id['job_id']
-                            urs = urs['job_id']
+                elif len(line) == 2:
+                    urs = line[1].lower()
 
-                            # create metadata
-                            results.append({"job_id": urs, "name": "rnacentral", "primary_id": None})
-                            results.append({"job_id": job_id, "name": "rnacentral", "primary_id": urs})
-                            results.append({"job_id": job_id, "name": db_name, "primary_id": None})
-                        else:
-                            # add missing ids to output_file
-                            if not job_id:
-                                output_file.write(line[0] + '\n')
-                            if not urs:
-                                output_file.write(line[1] + '\n')
+                    # create metadata
+                    if db_name == 'rnacentral':
+                        results.append({"job_id": job_id, "name": "rnacentral", "primary_id": urs})
+                    else:
+                        results.append({"job_id": job_id, "name": db_name, "primary_id": None})
 
-        # bulk insert into database
-        await metadata(engine, results)
+                else:
+                    # I'm using a single column file (with URS ids) to create part of the RNAcentral metadata
+                    # create metadata
+                    results.append({"job_id": job_id, "name": "rnacentral", "primary_id": None})
+
+                if len(results) > 100:  # Values greater than 100 sometimes cause an error
+                    try:
+                        await metadata(engine, results)  # bulk insert into database
+                        results = []
+                    except Exception as e:
+                        print(e)
+
+        try:
+            await metadata(engine, results)  # bulk insert into database
+        except Exception as e:
+            print(e)
 
 
 if __name__ == '__main__':
