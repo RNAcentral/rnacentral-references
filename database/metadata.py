@@ -28,8 +28,8 @@ async def metadata(engine, results):
         async with engine.acquire() as connection:
             try:
                 await connection.execute(Database.insert().values(results))
-            except Exception as e:
-                raise SQLError("Failed to save metadata in the database") from e
+            except Exception as error:
+                raise Exception(error)
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in metadata function") from e
 
