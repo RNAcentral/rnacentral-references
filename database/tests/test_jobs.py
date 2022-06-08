@@ -15,7 +15,8 @@ import sqlalchemy as sa
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.job import find_job_to_run, get_jobs, save_job, save_hit_count, search_performed, set_job_status
+from database.job import find_job_to_run, get_hit_count, get_jobs, get_search_date, save_job, save_hit_count, \
+    search_performed, set_job_status
 from database.tests.test_base import DBTestCase
 
 
@@ -151,3 +152,63 @@ class GetJobsTestCase(DBTestCase):
 
         jobs = await get_jobs(self.app['engine'])
         assert jobs == [{'job_id': 'foo', 'display_id': 'FOO'}, {'job_id': 'bar', 'display_id': 'Bar'}]
+
+
+class GetSearchDateTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.GetSearchDateTestCase
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+        async with self.app['engine'].acquire() as connection:
+            await connection.execute(
+                Job.insert().values(
+                    job_id='testsearchdate',
+                    submitted=datetime.datetime.now() - datetime.timedelta(minutes=10),
+                    finished=datetime.datetime.now(),
+                    status=JOB_STATUS_CHOICES.success
+                )
+            )
+
+    @unittest_run_loop
+    async def test_check_date(self):
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        search_date = await get_search_date(self.app['engine'], 'testsearchdate')
+        assert search_date.strftime("%Y-%m-%d") == today
+
+    @unittest_run_loop
+    async def test_no_date(self):
+        search_date = await get_search_date(self.app['engine'], 'nosearchdate')
+        assert search_date is None
+
+
+class GetHitCountTestCase(DBTestCase):
+    """
+    Run this test with the following command:
+    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.GetHitCountTestCase
+    """
+    async def setUpAsync(self):
+        await super().setUpAsync()
+
+        async with self.app['engine'].acquire() as connection:
+            await connection.execute(
+                Job.insert().values(
+                    job_id='testhitcount',
+                    submitted=datetime.datetime.now() - datetime.timedelta(minutes=10),
+                    finished=datetime.datetime.now(),
+                    status=JOB_STATUS_CHOICES.success,
+                    hit_count=3
+                )
+            )
+
+    @unittest_run_loop
+    async def test_hit_count(self):
+        hit_count = await get_hit_count(self.app['engine'], 'testhitcount')
+        assert hit_count == 3
+
+    @unittest_run_loop
+    async def test_no_hit_count(self):
+        hit_count = await get_hit_count(self.app['engine'], 'nohitcount')
+        assert hit_count == 0
