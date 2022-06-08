@@ -24,7 +24,7 @@ from consumer.settings import EUROPE_PMC
 from database.consumers import get_ip, set_consumer_status_and_job_id
 from database.job import get_hit_count, get_search_date, save_hit_count, set_job_status
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
-from database.results import save_results
+from database.results import get_pmcid, save_results
 from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import ParseError
 
@@ -146,6 +146,11 @@ async def seek_references(engine, job_id, consumer_ip, date):
         for item in temp_pmcid_list:
             if item not in pmcid_list:
                 pmcid_list.append(item)
+
+    if date and pmcid_list:
+        # filter pmcid_list to only search for articles that are not in the database
+        pmcid_in_db = await get_pmcid(engine, job_id)
+        pmcid_list = [item for item in pmcid_list if item['pmcid'] not in pmcid_in_db]
 
     for element in pmcid_list:
         # wait a while to respect the rate limit
