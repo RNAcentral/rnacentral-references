@@ -35,6 +35,24 @@ async def save_results(engine, job_id, results):
         raise DatabaseConnectionError("Failed to open DB connection in save_results, job_id = %s" % job_id) from e
 
 
+async def get_pmcid(engine, job_id):
+    """
+    Function to get a list of pmcid from a given job_id
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :return: list of pmcid
+    """
+    results = []
+    query = (sa.select([Result.c.pmcid]).select_from(Result).where(Result.c.job_id == job_id))  # noqa
+    try:
+        async with engine.acquire() as connection:
+            async for row in connection.execute(query):
+                results.append(row.pmcid)
+            return results
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
+
+
 async def get_job_results(engine, job_id):
     """
     Function to get job results
