@@ -172,3 +172,45 @@ async def get_jobs(engine):
                 raise SQLError("Failed to get jobs") from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in get_jobs()") from e
+
+
+async def get_search_date(engine, job_id):
+    """
+    Function to get the date of the search
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :return: date of the search or none
+    """
+    try:
+        async with engine.acquire() as connection:
+            query = (sa.select([Job.c.finished]).select_from(Job).where(Job.c.job_id == job_id))
+            finished = None
+            try:
+                async for row in connection.execute(query):
+                    finished = row.finished
+                return finished
+            except Exception as e:
+                raise SQLError("Failed to get the date of the search") from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_search_date()") from e
+
+
+async def get_hit_count(engine, job_id):
+    """
+    Function to get hit_count
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :return: hit_count
+    """
+    try:
+        async with engine.acquire() as connection:
+            query = (sa.select([Job.c.hit_count]).select_from(Job).where(Job.c.job_id == job_id))
+            hit_count = 0
+            try:
+                async for row in connection.execute(query):
+                    hit_count = row.hit_count
+                return hit_count
+            except Exception as e:
+                raise SQLError("Failed to get hit_count") from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_hit_count()") from e
