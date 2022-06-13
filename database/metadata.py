@@ -58,3 +58,28 @@ async def search_metadata(engine, job_id, db_name, primary_id):
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in search_metadata() for job_id = %s, "
                                       "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
+
+
+async def update_metadata(engine, job_id, primary_id, database):
+    """
+    Function to update the metadata of a given search and specify that it is a manually annotated article
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :param primary_id: primary id of the job
+    :param database: database name
+    :return: None
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                query = sa.text(
+                    '''UPDATE database SET manually_annotated=TRUE 
+                    WHERE job_id=:job_id AND primary_id=:primary_id AND name=:name'''
+                )
+                await connection.execute(query, job_id=job_id, primary_id=primary_id, name=database)
+            except Exception as e:
+                raise SQLError("Failed to update metadata, job_id = %s, primary_id = %s "
+                               "and database = %s" % (job_id, primary_id, database)) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in update_metadata, job_id = %s, primary_id = %s "
+                                      "and database = %s" % (job_id, primary_id, database)) from e

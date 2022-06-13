@@ -53,6 +53,32 @@ async def get_pmcid(engine, job_id):
         raise DatabaseConnectionError(str(e)) from e
 
 
+async def get_manually_annotated_articles(engine, urs, pmid, database):
+    """
+    Function to get manually annotated articles based on pmid
+    :param engine: params to connect to the db
+    :param urs: RNAcentral id
+    :param pmid: id of the PM
+    :param database: database name
+    :return: list of articles
+    """
+    try:
+        async with engine.acquire() as connection:
+            results = []
+            try:
+                async for row in connection.execute(sa.text(
+                        '''SELECT d.primary_id, j.job_id 
+                        FROM job j JOIN database d ON d.job_id=j.job_id JOIN result r ON r.job_id=j.job_id 
+                        WHERE d.name=:database and r.pmid=:pmid and d.primary_id=:urs'''
+                ), pmid=pmid, urs=urs, database=database):
+                    results.append({'primary_id': row.primary_id, 'job_id': row.job_id})
+                return results
+            except Exception as e:
+                raise SQLError("Failed to get manually annotated articles") from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_manually_annotated_articles()") from e
+
+
 async def get_job_results(engine, job_id):
     """
     Function to get job results
