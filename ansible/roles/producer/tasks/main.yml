@@ -39,7 +39,7 @@
       rsync_opts:
         - "--exclude=/ansible"
         - "--exclude=/get_ids"
-        - "--exclude=/consumer/files/*"
+        - "--exclude=/producer/files/*"
         - "--exclude=/__pycache__"
         - "--exclude=/.*"
         - "--exclude=/venv"
