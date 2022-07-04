@@ -27,7 +27,7 @@ async def find_job_to_run(engine):
     try:
         async with engine.acquire() as connection:
             try:
-                query = (sa.select([Job.c.job_id, Job.c.status, Job.c.submitted])
+                query = (sa.select([Job.c.display_id, Job.c.status, Job.c.submitted])
                          .select_from(Job)
                          .where(Job.c.status == JOB_STATUS_CHOICES.pending)
                          .order_by(Job.c.submitted)
@@ -36,7 +36,7 @@ async def find_job_to_run(engine):
                 # get the eight oldest jobs
                 output = []
                 async for row in connection.execute(query):
-                    output.append((row.job_id, row.submitted))
+                    output.append((row.display_id, row.submitted))
 
                 return output
 
