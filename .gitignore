@@ -6,3 +6,8 @@ ansible/hosts
 producer/files/*
 get_ids
 .env
+.DS_Store
+__pycache__/
+.idea/
+*.pyc
+*.pyo
