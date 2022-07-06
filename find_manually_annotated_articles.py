@@ -18,8 +18,9 @@ import os
 from aiopg.sa import create_engine
 from dotenv import load_dotenv
 
-from database.metadata import update_metadata
-from database.results import get_manually_annotated_articles
+from database.manually_annotated import save_manually_annotated
+from database.job import search_performed
+from database.results import get_pmid
 
 load_dotenv()
 
@@ -27,22 +28,20 @@ load_dotenv()
 async def find_manually_annotated_articles():
     """
     This function receives a list of articles that have been manually annotated and searches for
-    these articles in the database. If an entry is found, the manually_annotated field is updated.
-    Run it with: python3 find_manually_annotated_articles.py <file> <database>
+    these articles in the database. Results are saved in manually_annotated table.
+    Run it with: python3 find_manually_annotated_articles.py <file>
     :return: None
     """
-    # get parameters
+    # get parameter
     filename = None
-    db_name = None
 
-    if len(sys.argv) == 1 or len(sys.argv) == 2:
-        print("You must pass the file and the database")
+    if len(sys.argv) == 1:
+        print("Usage: python find_manually_annotated_articles.py <file>")
         exit()
-    elif len(sys.argv) == 3:
+    elif len(sys.argv) == 2:
         filename = sys.argv[1]
-        db_name = sys.argv[2]
     else:
-        print("Usage: python find_manually_annotated_articles.py <file> <database>")
+        print("Usage: python find_manually_annotated_articles.py <file>")
         exit()
 
     # get credentials
@@ -59,9 +58,13 @@ async def find_manually_annotated_articles():
                 urs = line[0].lower()
                 pmid = line[1]
 
-                results = await get_manually_annotated_articles(engine, urs, pmid, db_name)
-                for item in results:
-                    await update_metadata(engine, item['job_id'], item['primary_id'], db_name)
+                # check if pmid and urs exist in database
+                pmcid = await get_pmid(engine, pmid)
+                job_id = await search_performed(engine, urs)
+
+                if pmcid and job_id:
+                    # save data in manually_annotated table
+                    await save_manually_annotated(engine, {"pmcid": pmcid, "urs": job_id['job_id']})
 
 
 if __name__ == '__main__':
