@@ -15,7 +15,7 @@ import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Database, Job, JOB_STATUS_CHOICES
+from database.models import Job, JOB_STATUS_CHOICES
 
 
 async def find_job_to_run(engine):
@@ -205,11 +205,10 @@ async def get_hit_count(engine, job_id):
     try:
         async with engine.acquire() as connection:
             query = (sa.select([Job.c.hit_count]).select_from(Job).where(Job.c.job_id == job_id))
-            hit_count = 0
             try:
                 async for row in connection.execute(query):
                     hit_count = row.hit_count
-                return hit_count
+                return hit_count if hit_count else 0
             except Exception as e:
                 raise SQLError("Failed to get hit_count") from e
     except psycopg2.Error as e:
