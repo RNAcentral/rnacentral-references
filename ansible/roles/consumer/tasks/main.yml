@@ -3,14 +3,13 @@
     yum:
       name:
       - libpq-devel
-      - sqlite-devel
     tags: [ install-deps ]
 
   - name: Install Python 3.9
     shell: |
-      curl -OL https://www.python.org/ftp/python/3.9.7/Python-3.9.7.tgz
-      tar -xzf Python-3.9.7.tgz
-      cd Python-3.9.7
+      curl -OL https://www.python.org/ftp/python/3.9.13/Python-3.9.13.tgz
+      tar -xzf Python-3.9.13.tgz
+      cd Python-3.9.13
       ./configure --enable-optimizations
       make altinstall
     args:
@@ -40,7 +39,7 @@
       rsync_opts:
         - "--exclude=/ansible"
         - "--exclude=/get_ids"
-        - "--exclude=/consumer/files/*"
+        - "--exclude=/producer/files/*"
         - "--exclude=/__pycache__"
         - "--exclude=/.*"
         - "--exclude=/venv"
@@ -53,11 +52,12 @@
       virtualenv_command: /usr/local/bin/python3.9 -m venv
     tags: [ pip ]
 
-  - name: Install textblob.download_corpora
-    shell: |
-      source /srv/reference/venv/bin/activate
-      python -m textblob.download_corpora
-    tags: [ pip ]
+  #TODO: debug this step. It compiles, but it doesn't actually download punkt
+  #- name: Use the NLTK Downloader to obtain punkt
+  #  shell: |
+  #    source /srv/reference/venv/bin/activate
+  #    python -c "import nltk; nltk.download('punkt')"
+  #  tags: [ pip ]
 
   - name: Chown reference code
     command: "chown -R centos:centos /srv/reference"

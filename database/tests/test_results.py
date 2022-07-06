@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.results import save_results
+from database.results import get_pmcid, save_results
 from database.tests.test_base import DBTestCase
 
 
@@ -63,3 +63,22 @@ class SaveResults(DBTestCase):
 
             async for row in await connection.execute(query, job_id=self.job_id):
                 assert row.pmid == '123456789'
+
+
+    @unittest_run_loop
+    async def test_get_pmcid(self):
+        results = [{
+            'title': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
+            'title_value': True,
+            'abstract': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
+            'abstract_value': True,
+            'body': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
+            'body_value': True,
+            'pmcid': '123456789',
+            'pmid': '123456789',
+            'doi': '12.3456/7890-9999-9-9',
+            'job_id': self.job_id
+        }]
+        await save_results(self.app['engine'], self.job_id, results)
+        pmcid_list = await get_pmcid(self.app['engine'], self.job_id)
+        assert pmcid_list == ['123456789']

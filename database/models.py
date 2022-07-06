@@ -77,6 +77,7 @@ Job = sa.Table(
     'job',
     metadata,
     sa.Column('job_id', sa.String(100), primary_key=True),
+    sa.Column('display_id', sa.String(100)),
     sa.Column('status', sa.String(10)),  # choices=JOB_STATUS_CHOICES
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
@@ -113,6 +114,7 @@ Database = sa.Table(
     sa.Column('name', sa.String(50)),
     sa.Column('job_id', sa.String(100), sa.ForeignKey('job.job_id')),
     sa.Column('primary_id', sa.String(100), sa.ForeignKey('job.job_id'), nullable=True),
+    sa.Column('manually_annotated', sa.Boolean),
 )
 
 # Migrations
@@ -151,6 +153,7 @@ async def migrate(env):
             await connection.execute('''
                 CREATE TABLE job (
                   job_id VARCHAR(100) PRIMARY KEY,
+                  display_id VARCHAR(100),
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
                   status VARCHAR(10),
@@ -185,6 +188,7 @@ async def migrate(env):
                   name VARCHAR(50),
                   job_id VARCHAR(100),
                   primary_id VARCHAR(100),
+                  manually_annotated BOOLEAN,
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
                   FOREIGN KEY (primary_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
                   CONSTRAINT name_job UNIQUE (name, job_id, primary_id))

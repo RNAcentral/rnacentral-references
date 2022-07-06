@@ -15,6 +15,7 @@ import asyncio
 import gzip
 import os
 import random
+import sqlalchemy as sa
 import string
 import uuid
 import xml.etree.ElementTree as ET
@@ -23,7 +24,6 @@ import xml.etree.ElementTree as ET
 from aiopg.sa import create_engine
 from dotenv import load_dotenv
 
-from database.job import get_jobs, get_db_and_primary_id
 from producer.settings import path_to_xml_files
 
 load_dotenv()
@@ -44,10 +44,10 @@ async def create_xml_file(results):
         entry = ET.SubElement(entries, "entry", id="metadata" + "_" + str(uuid.uuid4()))
         additional_fields = ET.SubElement(entry, "additional_fields")
         ET.SubElement(additional_fields, "field", name="entry_type").text = "Metadata"
+        ET.SubElement(additional_fields, "field", name="database").text = item["database"]
         ET.SubElement(additional_fields, "field", name="job_id").text = item["job_id"]
-        ET.SubElement(additional_fields, "field", name="number_of_articles").text = item["hit_count"]
-        ET.SubElement(additional_fields, "field", name="database").text = item["db"]
         ET.SubElement(additional_fields, "field", name="primary_id").text = item["primary_id"]
+        ET.SubElement(additional_fields, "field", name="manually_annotated").text = item["manually_annotated"]
 
     ET.SubElement(database, "entry_count").text = str(len(results))
 
@@ -61,7 +61,7 @@ async def create_xml_file(results):
 
 async def search_index():
     """
-    This function gets the database and the primary_id of each job_id and creates a temporary list to store the data.
+    This function gets the metadata and creates a temporary list to store the data.
     It calls the create_xml_file function when the temporary list exceeds 300k results.
     Run it with: python3 search_index_metadata.py
     :return: create xml file
@@ -72,31 +72,26 @@ async def search_index():
     host = os.getenv("host")
     password = os.getenv("pass")
 
+    # create directory to store xml files, if necessary
+    path_to_xml_files.mkdir(parents=True, exist_ok=True)
+
+    # add results
+    temp_results = []
+
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
-        # get jobs
-        jobs = await get_jobs(engine)
-
-        # create directory to store xml files, if necessary
-        path_to_xml_files.mkdir(parents=True, exist_ok=True)
-
-        # add results
-        temp_results = []
-
-        for job in jobs:
-            # get db and primary_id
-            items = await get_db_and_primary_id(engine, job["job_id"])
-
-            for item in items:
+        async with engine.acquire() as connection:
+            query = sa.text('''SELECT name, job_id, primary_id, manually_annotated FROM database''')
+            async for row in connection.execute(query):
                 temp_results.append({
-                    "job_id": job["job_id"],
-                    "hit_count": str(job["hit_count"]),
-                    "db": item["name"],
-                    "primary_id": item["primary_id"]
+                    "database": row.name,
+                    "job_id": row.job_id,
+                    "primary_id": row.primary_id,
+                    "manually_annotated": "t" if row.manually_annotated is True else "f"
                 })
 
-            if len(temp_results) > 300000:
-                await create_xml_file(temp_results)
-                temp_results = []
+                if len(temp_results) > 300000:
+                    await create_xml_file(temp_results)
+                    temp_results = []
 
         await create_xml_file(temp_results)
 

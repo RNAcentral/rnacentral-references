@@ -1,0 +1,13 @@
+---
+# Playbook to search for new articles
+# Run with the following command:
+# ansible-playbook -i hosts search-by-date.yml --extra-vars "database=<database_name>"
+- hosts: postgres
+  remote_user: centos
+  become: true
+  become_method: sudo
+  vars:
+    ansible_ssh_private_key_file: "../terraform/sequence_search_rsa"
+  tasks:
+    - name: Update jobs to search for new articles
+      command: psql -U docker -c "UPDATE job j SET status='pending' FROM database d WHERE j.job_id=d.job_id AND d.name='{{ database }}'" reference

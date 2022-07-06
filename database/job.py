@@ -57,7 +57,7 @@ async def search_performed(engine, value):
     try:
         async with engine.acquire() as connection:
             try:
-                sql_query = sa.text('''SELECT job_id FROM job WHERE LOWER(job_id)=:value''')
+                sql_query = sa.text('''SELECT job_id FROM job WHERE job_id=:value''')
                 async for row in connection.execute(sql_query, value=value.lower()):
                     return {"job_id": row.job_id}
             except Exception as e:
@@ -78,7 +78,8 @@ async def save_job(engine, job_id):
             try:
                 await connection.execute(
                     Job.insert().values(
-                        job_id=job_id,
+                        job_id=job_id.lower(),
+                        display_id=job_id,
                         submitted=datetime.datetime.now(),
                         status=JOB_STATUS_CHOICES.pending,
                     )
@@ -164,8 +165,8 @@ async def get_jobs(engine):
         async with engine.acquire() as connection:
             results = []
             try:
-                async for row in connection.execute(sa.select([Job.c.job_id, Job.c.hit_count]).select_from(Job)):
-                    results.append({"job_id": row.job_id, "hit_count": row.hit_count})
+                async for row in connection.execute(sa.select([Job.c.job_id, Job.c.display_id]).select_from(Job)):
+                    results.append({"job_id": row.job_id, "display_id": row.display_id})
                 return results
             except Exception as e:
                 raise SQLError("Failed to get jobs") from e
@@ -173,72 +174,43 @@ async def get_jobs(engine):
         raise DatabaseConnectionError("Failed to open DB connection in get_jobs()") from e
 
 
-async def search_metadata(engine, job_id, db_name, primary_id):
+async def get_search_date(engine, job_id):
     """
-    Check if this id already exists with this database and primary_id
-    :param engine: params to connect to the db
-    :param job_id: the string to be searched
-    :param db_name: name of the Expert DB
-    :param primary_id: primary Id of this job_id
-    :return: id
-    """
-    try:
-        async with engine.acquire() as connection:
-            try:
-                sql_query = (sa.select([Database.c.id, Database.c.primary_id])
-                             .select_from(Database)
-                             .where(Database.c.job_id == job_id, Database.c.name == db_name,
-                                    Database.c.primary_id == primary_id))
-                async for row in connection.execute(sql_query):
-                    return {"id": row.id, "primary_id": row.primary_id}
-            except Exception as e:
-                raise SQLError("Failed to check if value exists for job_id = %s "
-                               "and db_name = %s" % (job_id, db_name)) from e
-    except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in search_metadata() for job_id = %s, "
-                                      "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
-
-
-async def save_metadata(engine, job_id, db_name, primary_id):
-    """
-    Save job_id, database name and primary_id
-    :param engine: params to connect to the db
-    :param job_id: the string that will be searched
-    :param db_name: database associated with this job_id
-    :param primary_id: primary Id of this job_id
-    :return: true in case of success
-    """
-    try:
-        async with engine.acquire() as connection:
-            try:
-                await connection.execute(Database.insert().values(job_id=job_id, name=db_name, primary_id=primary_id))
-                return True
-            except Exception as e:
-                raise SQLError("Failed to save metadata job_id = %s, "
-                               "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
-    except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in save_metadata() for job_id = %s, "
-                                      "db_name = %s and primary_id = %s" % (job_id, db_name, primary_id)) from e
-
-
-async def get_db_and_primary_id(engine, job_id):
-    """
-    Function to get db name and primary_id (used by search_index_metadata)
+    Function to get the date of the search
     :param engine: params to connect to the db
     :param job_id: id of the job
-    :return: list of db and primary_id
+    :return: date of the search or none
     """
     try:
         async with engine.acquire() as connection:
-            results = []
-            sql_query = (sa.select([Database.c.name, Database.c.primary_id])
-                         .select_from(Database)
-                         .where(Database.c.job_id == job_id))
+            query = (sa.select([Job.c.finished]).select_from(Job).where(Job.c.job_id == job_id))
+            finished = None
             try:
-                async for row in connection.execute(sql_query):
-                    results.append({"name": row.name, "primary_id": row.primary_id})
-                return results
+                async for row in connection.execute(query):
+                    finished = row.finished
+                return finished
             except Exception as e:
-                raise SQLError("Failed to get dbs for job_id = %s" % job_id) from e
+                raise SQLError("Failed to get the date of the search") from e
     except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in get_database() for job_id = %s" % job_id) from e
+        raise DatabaseConnectionError("Failed to open DB connection in get_search_date()") from e
+
+
+async def get_hit_count(engine, job_id):
+    """
+    Function to get hit_count
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :return: hit_count
+    """
+    try:
+        async with engine.acquire() as connection:
+            query = (sa.select([Job.c.hit_count]).select_from(Job).where(Job.c.job_id == job_id))
+            hit_count = 0
+            try:
+                async for row in connection.execute(query):
+                    hit_count = row.hit_count
+                return hit_count
+            except Exception as e:
+                raise SQLError("Failed to get hit_count") from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_hit_count()") from e

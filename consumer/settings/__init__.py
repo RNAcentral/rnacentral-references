@@ -30,14 +30,6 @@ PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'LOCAL')
 
-# add settings from environment-specific files
-if ENVIRONMENT == "LOCAL":
-    from .local import *
-elif ENVIRONMENT == "TEST":
-    from .test import *
-elif ENVIRONMENT == "PRODUCTION":
-    from .production import *
-
 # hostname to listen on
 HOST = '0.0.0.0'
 

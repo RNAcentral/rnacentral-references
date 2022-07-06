@@ -37,11 +37,11 @@ class SubmitJobTestCase(AioHTTPTestCase):
 
     @unittest_run_loop
     async def test_submit_job_post_success(self):
-        data = json.dumps({"id": "FOO.BAR", "database": "BAR.FOO"})
+        data = json.dumps({"id": "FOO.BAR"})
         async with self.client.post(path='/api/submit-job', data=data) as response:
             assert response.status == 201
             text = await response.text()
-            assert text == '{"job_id": "FOO.BAR"}'
+            assert text == '{"job_id": "foo.bar"}'
 
     @unittest_run_loop
     async def test_submit_job_post_fail(self):
@@ -50,11 +50,3 @@ class SubmitJobTestCase(AioHTTPTestCase):
             assert response.status == 400
             text = await response.text()
             assert text == '{"id": "Not found"}'
-
-    @unittest_run_loop
-    async def test_submit_job_missing_database(self):
-        data = json.dumps({"id": "FOO.BAR"})
-        async with self.client.post(path='/api/submit-job', data=data) as response:
-            assert response.status == 400
-            text = await response.text()
-            assert text == '{"database": "Not found"}'

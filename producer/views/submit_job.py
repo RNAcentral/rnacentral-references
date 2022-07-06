@@ -14,14 +14,14 @@ limitations under the License.
 from aiohttp import web
 from aiojobs.aiohttp import atomic
 
-from database.job import save_job, search_performed, save_metadata, search_metadata
+from database.job import save_job, search_performed
 
 
 @atomic
 async def submit_job(request):
     """
     Function to start searching for ids. Run this command to test:
-    curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\", \"database\": \"rfam\"}" localhost:8080/api/submit-job
+    curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\"}" localhost:8080/api/submit-job
     :param request: used to get the params to connect to the db
     :return: json with job_id
     """
@@ -29,42 +29,6 @@ async def submit_job(request):
 
     if "id" not in data:
         return web.json_response({"id": "Not found"}, status=400)
-
-    if "database" not in data:
-        return web.json_response({"database": "Not found"}, status=400)
-
-    if "urs" in data:
-        # check if this urs has already been searched
-        get_urs = await search_performed(request.app['engine'], data['urs'])
-
-        if get_urs:
-            urs = get_urs['job_id']
-        else:
-            # save metadata about this urs
-            urs = await save_job(request.app['engine'], data['urs'])
-            await save_metadata(request.app['engine'], data['urs'], 'rnacentral', None)
-    else:
-        urs = None
-
-    if "primary_id" in data:
-        # check if this primary_id has already been searched
-        get_primary_id = await search_performed(request.app['engine'], data['primary_id'])
-
-        if get_primary_id:
-            primary_id = get_primary_id['job_id']
-        else:
-            # save metadata about this primary_id
-            primary_id = await save_job(request.app['engine'], data['primary_id'])
-            await save_metadata(request.app['engine'], data['primary_id'], data['database'], None)
-
-        if "urs" in data:
-            # check if this primary_id already exists with this urs
-            get_metadata = await search_metadata(request.app['engine'], primary_id, 'rnacentral', urs)
-
-            if not get_metadata:
-                await save_metadata(request.app['engine'], data['primary_id'], 'rnacentral', urs)
-    else:
-        primary_id = None
 
     # check if this id has already been searched
     job = await search_performed(request.app['engine'], data['id'])
@@ -75,18 +39,5 @@ async def submit_job(request):
     else:
         # save metadata about this job
         job_id = await save_job(request.app['engine'], data['id'])
-
-    # check if this id already exists with this database and primary_id
-    get_metadata = await search_metadata(request.app['engine'], job_id, data['database'], primary_id)
-
-    if not get_metadata:
-        await save_metadata(request.app['engine'], job_id, data['database'], primary_id)
-
-    if "urs" in data:
-        # check if this id already exists with this urs
-        get_metadata = await search_metadata(request.app['engine'], job_id, 'rnacentral', urs)
-
-        if not get_metadata:
-            await save_metadata(request.app['engine'], job_id, 'rnacentral', urs)
 
     return web.json_response({"job_id": job_id}, status=201)

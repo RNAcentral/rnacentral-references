@@ -15,8 +15,8 @@ import sqlalchemy as sa
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.job import find_job_to_run, get_jobs, save_job, save_hit_count, search_performed, set_job_status, \
-    save_metadata, search_metadata, get_db_and_primary_id
+from database.job import find_job_to_run, get_hit_count, get_jobs, get_search_date, save_job, save_hit_count, \
+    search_performed, set_job_status
 from database.tests.test_base import DBTestCase
 
 
@@ -89,7 +89,7 @@ class SetJobStatusTestCase(DBTestCase):
         async with self.app['engine'].acquire() as connection:
             await connection.execute(
                 Job.insert().values(
-                    job_id='FOO',
+                    job_id='foo',
                     submitted=datetime.datetime.now(),
                     status=JOB_STATUS_CHOICES.pending
                 )
@@ -97,8 +97,8 @@ class SetJobStatusTestCase(DBTestCase):
 
     @unittest_run_loop
     async def test_set_job_status_started(self):
-        job = await set_job_status(self.app['engine'], 'FOO', JOB_STATUS_CHOICES.started)
-        assert job == 'FOO'
+        job = await set_job_status(self.app['engine'], 'foo', JOB_STATUS_CHOICES.started)
+        assert job == 'foo'
 
 
 class SaveHitCountTestCase(DBTestCase):
@@ -112,7 +112,7 @@ class SaveHitCountTestCase(DBTestCase):
         async with self.app['engine'].acquire() as connection:
             await connection.execute(
                 Job.insert().values(
-                    job_id='FOO',
+                    job_id='testHitCount',
                     submitted=datetime.datetime.now(),
                     status=JOB_STATUS_CHOICES.pending
                 )
@@ -120,13 +120,13 @@ class SaveHitCountTestCase(DBTestCase):
 
     @unittest_run_loop
     async def test_save_hit_count(self):
-        await save_hit_count(self.app['engine'], 'foo', 10)
+        await save_hit_count(self.app['engine'], 'testHitCount', 10)
 
         async with self.app['engine'].acquire() as connection:
             query = sa.text('''SELECT hit_count FROM job WHERE job_id=:job_id''')
 
-            async for row in await connection.execute(query, job_id='foo'):
-                assert row.id is 10
+            async for row in await connection.execute(query, job_id='testHitCount'):
+                assert row.hit_count is 10
                 break
 
 
@@ -142,109 +142,73 @@ class GetJobsTestCase(DBTestCase):
     async def test_save_job(self):
         await save_job(
             self.app['engine'],
-            job_id="foo"
+            job_id="FOO"
         )
 
         await save_job(
             self.app['engine'],
-            job_id="bar"
+            job_id="Bar"
         )
 
         jobs = await get_jobs(self.app['engine'])
-        print(jobs)
-        assert jobs == [{'job_id': 'foo', 'hit_count': None}, {'job_id': 'bar', 'hit_count': None}]
+        assert jobs == [{'job_id': 'foo', 'display_id': 'FOO'}, {'job_id': 'bar', 'display_id': 'Bar'}]
 
 
-class SaveAndSearchDBAndJobTestCase(DBTestCase):
+class GetSearchDateTestCase(DBTestCase):
     """
     Run this test with the following command:
-    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.SaveAndSearchDBAndJobTestCase
+    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.GetSearchDateTestCase
     """
     async def setUpAsync(self):
         await super().setUpAsync()
 
+        async with self.app['engine'].acquire() as connection:
+            await connection.execute(
+                Job.insert().values(
+                    job_id='testsearchdate',
+                    submitted=datetime.datetime.now() - datetime.timedelta(minutes=10),
+                    finished=datetime.datetime.now(),
+                    status=JOB_STATUS_CHOICES.success
+                )
+            )
+
     @unittest_run_loop
-    async def test_save_job(self):
-        job_id = await save_job(
-            self.app['engine'],
-            job_id="foo.bar"
-        )
+    async def test_check_date(self):
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        search_date = await get_search_date(self.app['engine'], 'testsearchdate')
+        assert search_date.strftime("%Y-%m-%d") == today
 
-        await save_metadata(
-            self.app['engine'],
-            job_id=job_id,
-            db_name="bar.foo",
-            primary_id=None
-        )
-
-        find_job_and_db = await search_metadata(self.app['engine'], "foo.bar", "bar.foo", None)
-        assert find_job_and_db is not None
+    @unittest_run_loop
+    async def test_no_date(self):
+        search_date = await get_search_date(self.app['engine'], 'nosearchdate')
+        assert search_date is None
 
 
-class GetDBsTestCase(DBTestCase):
+class GetHitCountTestCase(DBTestCase):
     """
     Run this test with the following command:
-    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.GetDBsTestCase
+    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.GetHitCountTestCase
     """
     async def setUpAsync(self):
         await super().setUpAsync()
 
-    @unittest_run_loop
-    async def test_save_job(self):
-        job_id = await save_job(
-            self.app['engine'],
-            job_id="foo"
-        )
-
-        await save_metadata(
-            self.app['engine'],
-            job_id=job_id,
-            db_name="db1",
-            primary_id=None
-        )
-
-        await save_metadata(
-            self.app['engine'],
-            job_id=job_id,
-            db_name="db2",
-            primary_id=None
-        )
-
-        dbs = await get_db_and_primary_id(self.app['engine'], job_id)
-        assert dbs == [{'name': 'db1', 'primary_id': None}, {'name': 'db2', 'primary_id': None}]
-
-
-class GetPrimaryIdTestCase(DBTestCase):
-    """
-    Run this test with the following command:
-    ENVIRONMENT=TEST python -m unittest database.tests.test_jobs.GetPrimaryIdTestCase
-    """
-    async def setUpAsync(self):
-        await super().setUpAsync()
+        async with self.app['engine'].acquire() as connection:
+            await connection.execute(
+                Job.insert().values(
+                    job_id='testhitcount',
+                    submitted=datetime.datetime.now() - datetime.timedelta(minutes=10),
+                    finished=datetime.datetime.now(),
+                    status=JOB_STATUS_CHOICES.success,
+                    hit_count=3
+                )
+            )
 
     @unittest_run_loop
-    async def test_save_job(self):
-        job_id = await save_job(
-            self.app['engine'],
-            job_id="foo"
-        )
+    async def test_hit_count(self):
+        hit_count = await get_hit_count(self.app['engine'], 'testhitcount')
+        assert hit_count == 3
 
-        job_id_2 = await save_job(
-            self.app['engine'],
-            job_id="bar"
-        )
-
-        await save_metadata(self.app['engine'], job_id_2, "db_name", job_id)
-
-        primary_id = await get_db_and_primary_id(
-            self.app['engine'],
-            job_id=job_id_2
-        )
-
-        no_primary_id = await get_db_and_primary_id(
-            self.app['engine'],
-            job_id=job_id
-        )
-
-        assert primary_id[0]["primary_id"] == job_id
-        assert no_primary_id == []
+    @unittest_run_loop
+    async def test_no_hit_count(self):
+        hit_count = await get_hit_count(self.app['engine'], 'nohitcount')
+        assert hit_count == 0

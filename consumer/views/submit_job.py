@@ -22,9 +22,9 @@ from aiojobs.aiohttp import spawn
 
 from consumer.settings import EUROPE_PMC
 from database.consumers import get_ip, set_consumer_status_and_job_id
-from database.job import save_hit_count, set_job_status
+from database.job import get_hit_count, get_search_date, save_hit_count, set_job_status
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
-from database.results import save_results
+from database.results import get_pmcid, save_results
 from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import ParseError
 
@@ -59,20 +59,26 @@ async def submit_job(request):
     # set job status
     await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.started)
 
+    # get the last search date for this job_id, if any
+    last_search = await get_search_date(engine, job_id)
+    last_search = last_search.date() if last_search else None
+
     # spawn job in the background and return 201
-    await spawn(request, seek_references(engine, job_id, consumer_ip))
+    await spawn(request, seek_references(engine, job_id, consumer_ip, last_search))
     return web.HTTPCreated()
 
 
-async def articles_list(job_id, page="*"):
+async def articles_list(job_id, date, page="*"):
     """
     Function to create a list of "PMCIDs" that have job_id in their content
     :param job_id: id of the job
+    :param date: search by date
     :param page: results page (* means the first page of results)
     :return: list of "PMCIDs" and the next page, if any
     """
+    search_date = f' AND (FIRST_PDATE:[{date} TO {datetime.date.today().strftime("%Y-%m-%d")}])' if date else ''
     query = f'search?query=("{job_id}" AND "rna" AND IN_EPMC:Y AND OPEN_ACCESS:Y ' \
-            f'AND NOT SRC:PPR)&pageSize=500&cursorMark={page}'
+            f'AND NOT SRC:PPR{search_date})&pageSize=500&cursorMark={page}'
 
     # fetch articles
     try:
@@ -110,7 +116,7 @@ async def articles_list(job_id, page="*"):
     return pmcid_list, next_page
 
 
-async def seek_references(engine, job_id, consumer_ip):
+async def seek_references(engine, job_id, consumer_ip, date):
     """
     Using the Europe PMC API, this function first gets a list of articles
     that mention job_id in their content and then parses article by article
@@ -118,9 +124,10 @@ async def seek_references(engine, job_id, consumer_ip):
     Note:
     - Europe PMC rate limits are 10 requests/second or 500 requests/minute.
     - The Europe PMC SOAP Web Service search results are sorted by relevance.
-    :param consumer_ip: consumer IP address
     :param engine: params to connect to the db
     :param job_id: id of the job
+    :param consumer_ip: consumer IP address
+    :param date: last search date for this job_id
     :return: save the results in the database and make the consumer available for a new search
     """
     results = []
@@ -129,16 +136,21 @@ async def seek_references(engine, job_id, consumer_ip):
     pmcid_list = []
     hit_count = 0
 
-    temp_pmcid_list, next_page = await articles_list(job_id)
+    temp_pmcid_list, next_page = await articles_list(job_id, date)
     for item in temp_pmcid_list:
         if item not in pmcid_list:
             pmcid_list.append(item)
 
     while next_page:
-        temp_pmcid_list, next_page = await articles_list(job_id, next_page)
+        temp_pmcid_list, next_page = await articles_list(job_id, date, next_page)
         for item in temp_pmcid_list:
             if item not in pmcid_list:
                 pmcid_list.append(item)
+
+    if date and pmcid_list:
+        # filter pmcid_list to only search for articles that are not in the database
+        pmcid_in_db = await get_pmcid(engine, job_id)
+        pmcid_list = [item for item in pmcid_list if item['pmcid'] not in pmcid_in_db]
 
     for element in pmcid_list:
         # wait a while to respect the rate limit
@@ -332,6 +344,11 @@ async def seek_references(engine, job_id, consumer_ip):
 
         # set job status
         await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.success)
+
+    # get hit_count if this search is to update a job_id
+    if date:
+        current_hit_count = await get_hit_count(engine, job_id)
+        hit_count = hit_count + current_hit_count
 
     # save hit_count
     await save_hit_count(engine, job_id, hit_count)
