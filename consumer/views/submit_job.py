@@ -78,8 +78,8 @@ async def articles_list(job_id, date, page="*"):
     :return: list of "PMCIDs" and the next page, if any
     """
     search_date = f' AND (FIRST_PDATE:[{date} TO {datetime.date.today().strftime("%Y-%m-%d")}])' if date else ''
-    query = f'search?query=("{job_id}" AND "rna" AND IN_EPMC:Y AND OPEN_ACCESS:Y ' \
-            f'AND NOT SRC:PPR{search_date})&pageSize=500&cursorMark={page}'
+    query = f'search?query=("{job_id}" AND ("rna" OR "mrna" OR "ncrna" OR "lncrna" OR "rrna" OR "sncrna") ' \
+            f'AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR{search_date})&pageSize=500&cursorMark={page}'
 
     # fetch articles
     try:
