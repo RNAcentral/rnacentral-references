@@ -57,11 +57,11 @@ class JobTestCase(DBTestCase):
 
     @unittest_run_loop
     async def test_get_jobs(self):
-        await save_job(self.app['engine'], job_id="FOOBar")
+        # should return jobs with hit_count > 0
+        await save_job(self.app['engine'], job_id="FOOBar")  # this id should not appear in the results
+        await save_hit_count(self.app['engine'], self.job_id, 5)
         jobs = await get_jobs(self.app['engine'])
-        assert jobs == [
-            {'job_id': self.job_id, 'display_id': self.display_id}, {'job_id': 'foobar', 'display_id': 'FOOBar'}
-        ]
+        assert jobs == [{'job_id': self.job_id, 'display_id': self.display_id}]
 
     @unittest_run_loop
     async def test_check_date(self):
