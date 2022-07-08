@@ -164,8 +164,9 @@ async def get_jobs(engine):
     try:
         async with engine.acquire() as connection:
             results = []
+            query = (sa.select([Job.c.job_id, Job.c.display_id]).select_from(Job).where(Job.c.hit_count > 0))
             try:
-                async for row in connection.execute(sa.select([Job.c.job_id, Job.c.display_id]).select_from(Job)):
+                async for row in connection.execute(query):
                     results.append({"job_id": row.job_id, "display_id": row.display_id})
                 return results
             except Exception as e:
