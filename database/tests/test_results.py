@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Article, Job, JOB_STATUS_CHOICES, Result, AbstractSentence, BodySentence
 from database.results import get_pmcid, get_pmcid_in_result, get_pmid, save_article, save_result, \
-    save_abstract_sentences, save_body_sentences
+    save_abstract_sentences, save_body_sentences, get_articles
 from database.tests.test_base import DBTestCase
 
 
@@ -36,7 +36,7 @@ class ResultsTestCase(DBTestCase):
             )
             self.pmcid = '123456780'
             self.pmid = '1234567'
-            await connection.execute(Article.insert().values(pmcid=self.pmcid, pmid=self.pmid))
+            await connection.execute(Article.insert().values(pmcid=self.pmcid, pmid=self.pmid, retracted=False))
             await connection.execute(Result.insert().values(job_id=self.job_id, pmcid=self.pmcid))
 
     @unittest_run_loop
@@ -115,3 +115,8 @@ class ResultsTestCase(DBTestCase):
     async def test_get_pmid(self):
         result = await get_pmid(self.app['engine'], self.pmid)
         assert self.pmcid == result
+
+    @unittest_run_loop
+    async def test_get_articles(self):
+        result = await get_articles(self.app['engine'])
+        assert ('pmcid', '123456780') in result[0].items()
