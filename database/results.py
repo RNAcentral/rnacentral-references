@@ -14,7 +14,7 @@ import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Article, Result, AbstractSentence, BodySentence
+from database.models import Article, Result, AbstractSentence, BodySentence, ManuallyAnnotated
 
 
 async def save_article(engine, result):
@@ -189,6 +189,88 @@ async def get_job_results(engine, job_id):
                     })
 
             return output
+
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
+
+
+async def get_articles(engine):
+    """
+    Function to get the data that will be used by the search index
+    :param engine: params to connect to the db
+    :return: list of dicts containing articles
+    """
+    articles = []
+    article_sql = (sa.select([Article.c.pmcid, Article.c.title, Article.c.abstract, Article.c.author, Article.c.pmid,
+                              Article.c.doi, Article.c.year, Article.c.journal, Article.c.score, Article.c.cited_by])
+                   .select_from(Article)
+                   .where(~Article.c.retracted))  # noqa
+
+    try:
+        async with engine.acquire() as connection:
+            async for row in connection.execute(article_sql):
+                # get all articles
+                articles.append({
+                    'pmcid': row['pmcid'],
+                    'title': row.title,
+                    'abstract': row.abstract,
+                    'author': row.author,
+                    'pmid': row.pmid,
+                    'doi': row.doi,
+                    'year': str(row.year),
+                    'journal': row.journal,
+                    'score': str(row.score),
+                    'cited_by': str(row.cited_by),
+                })
+
+            for article in articles:
+                # get the results of each article
+                results = []
+                results_sql = (sa.select([Result.c.id, Result.c.job_id, Result.c.id_in_title, Result.c.id_in_abstract,
+                                          Result.c.id_in_body])
+                               .select_from(Result)
+                               .where(Result.c.pmcid == article['pmcid']))  # noqa
+
+                async for row in connection.execute(results_sql):
+                    results.append({
+                        'id': row.id,
+                        'job_id': row.job_id,
+                        'id_in_title': str(row.id_in_title),
+                        'id_in_abstract': str(row.id_in_abstract),
+                        'id_in_body': str(row.id_in_body)
+                    })
+
+                for result in results:
+                    # get abstract sentence
+                    abstract_sql = sa.text(
+                        '''SELECT sentence FROM abstract_sentence 
+                        WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
+                    )
+                    async for row in connection.execute(abstract_sql, result_id=result['id']):
+                        result['abstract_sentence'] = row.sentence
+
+                    # get body sentence
+                    body_sql = sa.text(
+                        '''SELECT sentence FROM body_sentence 
+                        WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
+                    )
+                    async for row in connection.execute(body_sql, result_id=result['id']):
+                        result['body_sentence'] = row.sentence
+
+                article['result'] = results
+
+                # check if this article was manually annotated for any URS
+                manually_annotated = []
+                manually_annotated_sql = (sa.select([ManuallyAnnotated.c.urs])
+                                          .select_from(ManuallyAnnotated)
+                                          .where(ManuallyAnnotated.c.pmcid == article['pmcid']))  # noqa
+
+                async for row in connection.execute(manually_annotated_sql):
+                    manually_annotated.append(row.urs.upper())
+
+                article['manually_annotated'] = manually_annotated
+
+            return articles
 
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e
