@@ -10,6 +10,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import logging
 import psycopg2
 import sqlalchemy as sa
 
@@ -29,7 +30,7 @@ async def save_article(engine, result):
             try:
                 await connection.execute(Article.insert().values(result))
             except Exception as e:
-                raise SQLError("Failed to save_article in the database, pmcid = %s" % result["pmcid"]) from e
+                logging.debug("Failed to save_article in the database. Error: {}.".format(e))
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in save_article, "
                                       "pmcid = %s" % result["pmcid"]) from e
@@ -48,7 +49,7 @@ async def save_result(engine, result):
                 async for row in connection.execute(Result.insert().values(result).returning(Result.c.id)):
                     return row.id
             except Exception as e:
-                raise SQLError("Failed to save_result in the database, job_id = %s" % result["job_id"]) from e
+                logging.debug("Failed to save_result in the database. Error: {}.".format(e))
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in save_result, "
                                       "job_id = %s" % result["job_id"]) from e
