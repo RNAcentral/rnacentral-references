@@ -275,3 +275,39 @@ async def get_articles(engine):
 
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e
+
+
+async def get_all_pmcid(engine):
+    """
+    Function to get all pmcid that were not retracted
+    :param engine: params to connect to the db
+    :return: list of pmcid
+    """
+    articles = []
+    article_sql = (sa.select([Article.c.pmcid]).select_from(Article).where(~Article.c.retracted))  # noqa
+
+    try:
+        async with engine.acquire() as connection:
+            async for row in connection.execute(article_sql):
+                articles.append(row.pmcid)
+            return articles
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
+
+
+async def retracted_article(engine, pmcid):
+    """
+    Function to set article as retracted
+    :param engine: params to connect to the db
+    :param pmcid: article that was retracted
+    :return: None
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                query = sa.text('''UPDATE article SET retracted=:retracted WHERE pmcid=:pmcid''')
+                await connection.execute(query, retracted=True, pmcid=pmcid)
+            except Exception as e:
+                logging.debug("Failed to retracted_article. Error: {}.".format(e))
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
