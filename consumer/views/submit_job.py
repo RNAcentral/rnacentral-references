@@ -358,13 +358,14 @@ async def seek_references(engine, job_id, consumer_ip, date):
                 # save result
                 result_id = await save_result(engine, result_response)
 
-                # save abstract sentences
-                abstract_sentences = [{"result_id": result_id, "sentence": item} for item in abstract_sentences]
-                await save_abstract_sentences(engine, abstract_sentences)
+                if result_id:
+                    # save abstract sentences
+                    abstract_sentences = [{"result_id": result_id, "sentence": item} for item in abstract_sentences]
+                    await save_abstract_sentences(engine, abstract_sentences)
 
-                # save body sentences
-                body_sentences = [{"result_id": result_id, "sentence": item} for item in body_sentences]
-                await save_body_sentences(engine, body_sentences)
+                    # save body sentences
+                    body_sentences = [{"result_id": result_id, "sentence": item} for item in body_sentences]
+                    await save_body_sentences(engine, body_sentences)
 
                 hit_count += 1
 
