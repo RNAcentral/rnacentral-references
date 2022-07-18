@@ -43,8 +43,8 @@ async def find_retracted_articles():
         # get list of articles
         pmcid_list = await get_all_pmcid(engine)
 
-        # check 30 articles at a time
-        step = 30
+        # check 1000 articles at a time
+        step = 1000
         for sublist in range(0, len(pmcid_list), step):
             check_pmcid = pmcid_list[sublist:sublist+step]
 
