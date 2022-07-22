@@ -40,31 +40,31 @@ async def create_xml_file(results):
     entries = ET.SubElement(database, "entries")
 
     for item in results:
-        entry = ET.SubElement(entries, "entry", id=item['pmcid'])
-        additional_fields = ET.SubElement(entry, "additional_fields")
-        ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
-        ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
-        ET.SubElement(additional_fields, "field", name="title").text = item['title']
-        ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
-        ET.SubElement(additional_fields, "field", name="author").text = item['author']
-        ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
-        ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
-        ET.SubElement(additional_fields, "field", name="journal").text = item['journal']
-        ET.SubElement(additional_fields, "field", name="year").text = item['year']
-        ET.SubElement(additional_fields, "field", name="score").text = item['score']
-        ET.SubElement(additional_fields, "field", name="cited_by").text = item['cited_by']
         for elem in item['result']:
-            ET.SubElement(additional_fields, "field", name="job_id").text = elem["job_id"]
-            ET.SubElement(additional_fields, "field", name="title_value").text = elem["job_id"] + "|" + elem['id_in_title']
-            ET.SubElement(additional_fields, "field", name="abstract_value").text = elem["job_id"] + "|" + elem['id_in_abstract']
-            ET.SubElement(additional_fields, "field", name="body_value").text = elem["job_id"] + "|" + elem['id_in_body']
+            entry = ET.SubElement(entries, "entry", id=elem["job_id"] + "_" + item['pmcid'])
+            additional_fields = ET.SubElement(entry, "additional_fields")
+            ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
+            ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
+            ET.SubElement(additional_fields, "field", name="title").text = item['title']
+            ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
+            ET.SubElement(additional_fields, "field", name="author").text = item['author']
+            ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
+            ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
+            ET.SubElement(additional_fields, "field", name="journal").text = item['journal']
+            ET.SubElement(additional_fields, "field", name="year").text = item['year']
+            ET.SubElement(additional_fields, "field", name="score").text = item['score']
+            ET.SubElement(additional_fields, "field", name="cited_by").text = item['cited_by']
+            ET.SubElement(additional_fields, "field", name="job_id").text = elem["display_id"]
+            ET.SubElement(additional_fields, "field", name="title_value").text = elem['id_in_title']
+            ET.SubElement(additional_fields, "field", name="abstract_value").text = elem['id_in_abstract']
+            ET.SubElement(additional_fields, "field", name="body_value").text = elem['id_in_body']
             if 'abstract_sentence' in elem:
-                ET.SubElement(additional_fields, "field", name="abstract_sentence").text = elem["job_id"] + "|" + elem['abstract_sentence']
+                ET.SubElement(additional_fields, "field", name="abstract_sentence").text = elem['abstract_sentence']
             if 'body_sentence' in elem:
-                ET.SubElement(additional_fields, "field", name="body_sentence").text = elem["job_id"] + "|" + elem['body_sentence']
-        if 'manually_annotated' in item:
-            for elem in item['manually_annotated']:
-                ET.SubElement(additional_fields, "field", name="manually_annotated").text = elem
+                ET.SubElement(additional_fields, "field", name="body_sentence").text = elem['body_sentence']
+            if 'manually_annotated' in item:
+                for urs in item['manually_annotated']:
+                    ET.SubElement(additional_fields, "field", name="manually_annotated").text = urs
 
     ET.SubElement(database, "entry_count").text = str(len(results))
 
@@ -96,8 +96,8 @@ async def search_index():
         # create directory to store xml files, if necessary
         path_to_xml_files.mkdir(parents=True, exist_ok=True)
 
-        for i in range(0, len(articles), 10000):
-            await create_xml_file(articles[i:i + 10000])
+        for i in range(0, len(articles), 50000):
+            await create_xml_file(articles[i:i + 50000])
 
 
 if __name__ == '__main__':
