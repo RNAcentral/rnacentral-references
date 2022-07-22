@@ -15,7 +15,7 @@ import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Article, Result, AbstractSentence, BodySentence, ManuallyAnnotated
+from database.models import Article, Result, AbstractSentence, BodySentence, Job, ManuallyAnnotated
 
 
 async def save_article(engine, result):
@@ -242,6 +242,11 @@ async def get_articles(engine):
                     })
 
                 for result in results:
+                    # get display_id
+                    display_id = sa.select([Job.c.display_id]).select_from(Job).where(Job.c.job_id == result['job_id'])
+                    async for row in connection.execute(display_id):
+                        result['display_id'] = row.display_id
+
                     # get abstract sentence
                     abstract_sql = sa.text(
                         '''SELECT sentence FROM abstract_sentence 
