@@ -27,7 +27,7 @@ async def get_urs_count(engine):
             try:
                 result = []
                 query = sa.text('''
-                    SELECT UPPER(d.primary_id), SUM(j.hit_count) 
+                    SELECT UPPER(d.primary_id) as urs, SUM(j.hit_count) as total
                     FROM job j 
                     JOIN database d 
                     ON d.job_id=j.job_id 
@@ -35,7 +35,7 @@ async def get_urs_count(engine):
                     GROUP BY d.primary_id;
                 ''')
                 async for row in connection.execute(query):
-                    result.append({"urs": row.primary_id, "hit_count": row.hit_count})
+                    result.append({"urs": row.urs, "hit_count": row.total})
                 return result
             except Exception as e:
                 raise SQLError(str(e)) from e
