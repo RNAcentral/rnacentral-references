@@ -16,7 +16,7 @@ def main():
             for item in line[2:]:
                 if item:
                     try:
-                        data = {'id': item}
+                        data = {'id': item.rstrip()}
                         requests.post(url, json=data)
                     except Exception as e:
                         print(e)
