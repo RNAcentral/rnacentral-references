@@ -45,6 +45,10 @@ async def find_retracted_articles():
 
         # check 1000 articles at a time
         step = 1000
+
+        # list of articles that have been retracted
+        retracted_articles = []
+
         for sublist in range(0, len(pmcid_list), step):
             check_pmcid = pmcid_list[sublist:sublist+step]
 
@@ -59,14 +63,18 @@ async def find_retracted_articles():
             if "articlesWithStatusUpdate" in data and len(data["articlesWithStatusUpdate"]) > 0:
                 for item in data["articlesWithStatusUpdate"]:
                     if "statusUpdates" in item and "RETRACTED" in item["statusUpdates"]:
-                        # send a message on Slack
-                        message = f'Article {item["extId"]} has been retracted'
-                        requests.post(webhook, json.dumps({"text": message}))
+                        retracted_articles.append(item["extId"])
 
                         # update article
                         await retracted_article(engine, item["extId"])
 
             await asyncio.sleep(0.3)
+
+        # send a message on Slack
+        if retracted_articles:
+            message = f'{len(retracted_articles)} {"articles have" if len(retracted_articles)>1 else "article has"} ' \
+                      f'been retracted: {", ".join(retracted_articles)}'
+            requests.post(webhook, json.dumps({"text": message}))
 
 
 if __name__ == '__main__':
