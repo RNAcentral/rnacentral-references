@@ -14,6 +14,8 @@ limitations under the License.
 import asyncio
 import json
 import os
+import random
+import string
 import sqlalchemy as sa
 
 from aiopg.sa import create_engine
@@ -22,6 +24,41 @@ from dotenv import load_dotenv
 from database.models import Article, Result
 
 load_dotenv()
+
+
+async def create_json_file(annotations):
+    """
+    Creates the Json file that will be used by Europe PMC
+    :param annotations: list of results
+    :return: none
+    """
+    # random string to use in filename
+    random_char = "".join(random.choices(string.ascii_uppercase + string.digits, k=16))
+
+    with open("json_files/" + "RNAcentral_annotations_" + random_char, "w", encoding="utf-8") as outfile:
+        outfile.write("[" + ",\n".join(json.dumps(row, ensure_ascii=False) for row in annotations) + "]\n")
+
+
+async def create_annotation(json_obj, exact, section, job_id, urs):
+    """
+    Function to add annotation
+    :param json_obj: json object
+    :param exact: sentence
+    :param section: section from which the sentence was taken
+    :param job_id: identifiers (ids), gene names or synonyms
+    :param urs: URS related to the job_id
+    :return: new annotation
+    """
+    return json_obj["anns"].append({
+        "exact": exact,
+        "section": section,
+        "tags": [
+            {
+                "name": job_id,
+                "uri": "https://rnacentral.org/rna/" + urs.upper()
+            }
+        ]
+    })
 
 
 async def export_results():
@@ -35,6 +72,9 @@ async def export_results():
     database = os.getenv("db")
     host = os.getenv("host")
     password = os.getenv("pass")
+
+    # list of annotations
+    annotations = []
 
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
         # get list of articles
@@ -100,14 +140,7 @@ async def export_results():
 
                     # add annotation in case the article title contains the job_id
                     if "urs" in result and result["id_in_title"]:
-                        json_obj["anns"].append({
-                            "exact": item["title"],
-                            "section": "title",
-                            "tags": [{
-                                "name": result["job_id"],
-                                "uri": "https://rnacentral.org/rna/" + result["urs"].upper()
-                            }]
-                        })
+                        await create_annotation(json_obj, item["title"], "title", result["job_id"], result["urs"])
 
                     # add annotation if the abstract contains the job_id
                     if "urs" in result and result["id_in_abstract"]:
@@ -117,17 +150,10 @@ async def export_results():
                             WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
                         )
                         async for row in connection.execute(abstract_sql, result_id=result["id"]):
-                            abstract_sentence = row.sentence
+                            abs_sentence = row.sentence
 
-                        if "found in an image, table or supplementary material" not in abstract_sentence:
-                            json_obj["anns"].append({
-                                "exact": abstract_sentence,
-                                "section": "abstract",
-                                "tags": [{
-                                    "name": result["job_id"],
-                                    "uri": "https://rnacentral.org/rna/" + result["urs"].upper()
-                                }]
-                            })
+                        if "found in an image, table or supplementary material" not in abs_sentence:
+                            await create_annotation(json_obj, abs_sentence, "abstract", result["job_id"], result["urs"])
 
                     # add annotation if the body of the article contains the job_id
                     if "urs" in result and result["id_in_body"]:
@@ -140,18 +166,16 @@ async def export_results():
                             body_sentence = row.sentence
 
                         if "found in an image, table or supplementary material" not in body_sentence:
-                            json_obj["anns"].append({
-                                "exact": body_sentence,
-                                "section": "body",
-                                "tags": [{
-                                    "name": result["job_id"],
-                                    "uri": "https://rnacentral.org/rna/" + result["urs"].upper()
-                                }]
-                            })
+                            await create_annotation(json_obj, body_sentence, "body", result["job_id"], result["urs"])
 
                 if json_obj["anns"]:
-                    with open("json_files/" + item["pmcid"] + ".json", "w") as outfile:
-                        outfile.write(json.dumps(json_obj, ensure_ascii=False, indent=4))
+                    # add annotation
+                    annotations.append(json_obj)
+
+    # every file must have less than 10000 rows, where each row represents an individual
+    # article with all associated annotations.
+    for i in range(0, len(annotations), 9999):
+        await create_json_file(annotations[i:i + 9999])
 
 
 if __name__ == "__main__":
