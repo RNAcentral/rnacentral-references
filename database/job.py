@@ -15,7 +15,7 @@ import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Database, Job, JOB_STATUS_CHOICES
+from database.models import Job, JOB_STATUS_CHOICES
 
 
 async def find_job_to_run(engine):
@@ -27,7 +27,7 @@ async def find_job_to_run(engine):
     try:
         async with engine.acquire() as connection:
             try:
-                query = (sa.select([Job.c.job_id, Job.c.status, Job.c.submitted])
+                query = (sa.select([Job.c.display_id, Job.c.status, Job.c.submitted])
                          .select_from(Job)
                          .where(Job.c.status == JOB_STATUS_CHOICES.pending)
                          .order_by(Job.c.submitted)
@@ -36,7 +36,7 @@ async def find_job_to_run(engine):
                 # get the eight oldest jobs
                 output = []
                 async for row in connection.execute(query):
-                    output.append((row.job_id, row.submitted))
+                    output.append((row.display_id, row.submitted))
 
                 return output
 
@@ -164,8 +164,9 @@ async def get_jobs(engine):
     try:
         async with engine.acquire() as connection:
             results = []
+            query = (sa.select([Job.c.job_id, Job.c.display_id]).select_from(Job).where(Job.c.hit_count > 0))
             try:
-                async for row in connection.execute(sa.select([Job.c.job_id, Job.c.display_id]).select_from(Job)):
+                async for row in connection.execute(query):
                     results.append({"job_id": row.job_id, "display_id": row.display_id})
                 return results
             except Exception as e:
@@ -205,11 +206,10 @@ async def get_hit_count(engine, job_id):
     try:
         async with engine.acquire() as connection:
             query = (sa.select([Job.c.hit_count]).select_from(Job).where(Job.c.job_id == job_id))
-            hit_count = 0
             try:
                 async for row in connection.execute(query):
                     hit_count = row.hit_count
-                return hit_count
+                return hit_count if hit_count else 0
             except Exception as e:
                 raise SQLError("Failed to get hit_count") from e
     except psycopg2.Error as e:

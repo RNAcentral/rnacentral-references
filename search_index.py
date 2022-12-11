@@ -22,8 +22,7 @@ import xml.etree.ElementTree as ET
 from aiopg.sa import create_engine
 from dotenv import load_dotenv
 
-from database.job import get_jobs
-from database.results import get_job_results
+from database.results import get_articles
 from producer.settings import path_to_xml_files
 
 load_dotenv()
@@ -41,24 +40,31 @@ async def create_xml_file(results):
     entries = ET.SubElement(database, "entries")
 
     for item in results:
-        entry = ET.SubElement(entries, "entry", id=item["job_id"] + "_" + item['pmcid'])
-        additional_fields = ET.SubElement(entry, "additional_fields")
-        ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
-        ET.SubElement(additional_fields, "field", name="job_id").text = item["job_id"]
-        ET.SubElement(additional_fields, "field", name="title").text = item['title']
-        ET.SubElement(additional_fields, "field", name="title_value").text = item['title_value']
-        ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
-        ET.SubElement(additional_fields, "field", name="abstract_value").text = item['abstract_value']
-        ET.SubElement(additional_fields, "field", name="body").text = item['body']
-        ET.SubElement(additional_fields, "field", name="body_value").text = item['body_value']
-        ET.SubElement(additional_fields, "field", name="author").text = item['author']
-        ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
-        ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
-        ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
-        ET.SubElement(additional_fields, "field", name="journal").text = item['journal']
-        ET.SubElement(additional_fields, "field", name="year").text = item['year']
-        ET.SubElement(additional_fields, "field", name="score").text = item['score']
-        ET.SubElement(additional_fields, "field", name="cited_by").text = item['cited_by']
+        for elem in item['result']:
+            entry = ET.SubElement(entries, "entry", id=elem["job_id"] + "_" + item['pmcid'])
+            additional_fields = ET.SubElement(entry, "additional_fields")
+            ET.SubElement(additional_fields, "field", name="entry_type").text = "Publication"
+            ET.SubElement(additional_fields, "field", name="pmcid").text = item['pmcid']
+            ET.SubElement(additional_fields, "field", name="title").text = item['title']
+            ET.SubElement(additional_fields, "field", name="abstract").text = item['abstract']
+            ET.SubElement(additional_fields, "field", name="author").text = item['author']
+            ET.SubElement(additional_fields, "field", name="pmid").text = item['pmid']
+            ET.SubElement(additional_fields, "field", name="doi").text = item['doi']
+            ET.SubElement(additional_fields, "field", name="journal").text = item['journal']
+            ET.SubElement(additional_fields, "field", name="year").text = item['year']
+            ET.SubElement(additional_fields, "field", name="score").text = item['score']
+            ET.SubElement(additional_fields, "field", name="cited_by").text = item['cited_by']
+            ET.SubElement(additional_fields, "field", name="job_id").text = elem["display_id"]
+            ET.SubElement(additional_fields, "field", name="title_value").text = elem['id_in_title']
+            ET.SubElement(additional_fields, "field", name="abstract_value").text = elem['id_in_abstract']
+            ET.SubElement(additional_fields, "field", name="body_value").text = elem['id_in_body']
+            if 'abstract_sentence' in elem:
+                ET.SubElement(additional_fields, "field", name="abstract_sentence").text = elem['abstract_sentence']
+            if 'body_sentence' in elem:
+                ET.SubElement(additional_fields, "field", name="body_sentence").text = elem['body_sentence']
+            if 'manually_annotated' in item:
+                for urs in item['manually_annotated']:
+                    ET.SubElement(additional_fields, "field", name="manually_annotated").text = urs
 
     ET.SubElement(database, "entry_count").text = str(len(results))
 
@@ -72,8 +78,8 @@ async def create_xml_file(results):
 
 async def search_index():
     """
-    This function fetches the results of each job_id and creates a temporary list to store the data.
-    It calls the create_xml_file function when the temporary list exceeds 200k results.
+    This function fetches the data of all articles.
+    It calls the create_xml_file function every 10000 articles.
     Run it with: python3 search_index.py
     :return: create xml file
     """
@@ -84,43 +90,14 @@ async def search_index():
     password = os.getenv("pass")
 
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
-        # get jobs
-        jobs = await get_jobs(engine)
+        # get articles
+        articles = await get_articles(engine)
 
         # create directory to store xml files, if necessary
         path_to_xml_files.mkdir(parents=True, exist_ok=True)
 
-        # add results
-        temp_results = []
-
-        for job in jobs:
-            # get results
-            results = await get_job_results(engine, job["job_id"])
-
-            for result in results:
-                temp_results.append({
-                    "job_id": job["display_id"],
-                    "title": result["title"],
-                    "title_value": str(result['title_value']),
-                    "abstract": result['abstract'],
-                    "abstract_value": str(result['abstract_value']),
-                    "body": result['body'],
-                    "body_value": str(result['body_value']),
-                    "author": result['author'],
-                    "pmcid": result['pmcid'],
-                    "pmid": result['pmid'],
-                    "doi": result['doi'],
-                    "journal": result['journal'],
-                    "year": str(result['year']),
-                    "score": str(result['score']),
-                    "cited_by": str(result['cited_by']),
-                })
-
-                if len(temp_results) > 200000:
-                    await create_xml_file(temp_results)
-                    temp_results = []
-
-        await create_xml_file(temp_results)
+        for i in range(0, len(articles), 50000):
+            await create_xml_file(articles[i:i + 50000])
 
 
 if __name__ == '__main__':

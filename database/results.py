@@ -10,73 +10,133 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import logging
 import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Result
+from database.models import Article, Result, AbstractSentence, BodySentence, Job, ManuallyAnnotated
 
 
-async def save_results(engine, job_id, results):
+async def save_article(engine, result):
     """
-    Function to save results in DB
+    Function to save an article in the database
     :param engine: params to connect to the db
-    :param job_id: id of the job
-    :param results: list of dicts containing the results
+    :param result: dict containing the article
     :return: None
     """
     try:
         async with engine.acquire() as connection:
             try:
-                await connection.execute(Result.insert().values(results))
+                await connection.execute(Article.insert().values(result))
             except Exception as e:
-                raise SQLError("Failed to save_results in the database, job_id = %s" % job_id) from e
+                logging.debug("Failed to save_article in the database. Error: {}.".format(e))
     except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in save_results, job_id = %s" % job_id) from e
+        raise DatabaseConnectionError("Failed to open DB connection in save_article, "
+                                      "pmcid = %s" % result["pmcid"]) from e
 
 
-async def get_pmcid(engine, job_id):
+async def save_result(engine, result):
     """
-    Function to get a list of pmcid from a given job_id
+    Function to save result in the database
     :param engine: params to connect to the db
-    :param job_id: id of the job
-    :return: list of pmcid
+    :param result: dict containing the result
+    :return: id of the result
     """
-    results = []
-    query = (sa.select([Result.c.pmcid]).select_from(Result).where(Result.c.job_id == job_id))  # noqa
+    try:
+        async with engine.acquire() as connection:
+            try:
+                async for row in connection.execute(Result.insert().values(result).returning(Result.c.id)):
+                    return row.id
+            except Exception as e:
+                logging.debug("Failed to save_result in the database. Error: {}.".format(e))
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in save_result, "
+                                      "job_id = %s" % result["job_id"]) from e
+
+
+async def save_abstract_sentences(engine, sentences):
+    """
+    Function to save abstract sentences in the database
+    :param engine: params to connect to the db
+    :param sentences: list of dicts containing the sentences
+    :return: None
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                await connection.execute(AbstractSentence.insert().values(sentences))
+            except Exception as e:
+                raise SQLError("Failed to save abstract sentences in the database") from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in save_abstract_sentences") from e
+
+
+async def save_body_sentences(engine, sentences):
+    """
+    Function to save body sentences in the database
+    :param engine: params to connect to the db
+    :param sentences: list of dicts containing the sentences
+    :return: None
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                await connection.execute(BodySentence.insert().values(sentences))
+            except Exception as e:
+                raise SQLError("Failed to save body sentences in the database") from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in save_body_sentences") from e
+
+
+async def get_pmcid(engine, pmcid):
+    """
+    Function to check if an article has already been saved in the database
+    :param engine: params to connect to the db
+    :param job_id: pmcid of the article
+    :return: pmcid
+    """
+    query = (sa.select([Article.c.pmcid]).select_from(Article).where(Article.c.pmcid == pmcid))  # noqa
     try:
         async with engine.acquire() as connection:
             async for row in connection.execute(query):
-                results.append(row.pmcid)
-            return results
+                return row.pmcid
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e
 
 
-async def get_manually_annotated_articles(engine, urs, pmid, database):
+async def get_pmcid_in_result(engine, job_id):
     """
-    Function to get manually annotated articles based on pmid
+    Function to get pmcid from a given job_id
     :param engine: params to connect to the db
-    :param urs: RNAcentral id
-    :param pmid: id of the PM
-    :param database: database name
-    :return: list of articles
+    :param job_id: id of the job
+    :return: list of pmcid saved in db
     """
     try:
         async with engine.acquire() as connection:
-            results = []
-            try:
-                async for row in connection.execute(sa.text(
-                        '''SELECT d.primary_id, j.job_id 
-                        FROM job j JOIN database d ON d.job_id=j.job_id JOIN result r ON r.job_id=j.job_id 
-                        WHERE d.name=:database and r.pmid=:pmid and d.primary_id=:urs'''
-                ), pmid=pmid, urs=urs, database=database):
-                    results.append({'primary_id': row.primary_id, 'job_id': row.job_id})
-                return results
-            except Exception as e:
-                raise SQLError("Failed to get manually annotated articles") from e
+            pmcid_in_db = []
+            query = (sa.select([Result.c.pmcid]).select_from(Result).where(Result.c.job_id == job_id))
+            async for row in connection.execute(query):
+                pmcid_in_db.append(row.pmcid)
+            return pmcid_in_db
     except psycopg2.Error as e:
-        raise DatabaseConnectionError("Failed to open DB connection in get_manually_annotated_articles()") from e
+        raise DatabaseConnectionError("Failed to open DB connection in get_pmcid_in_result()") from e
+
+
+async def get_pmid(engine, pmid):
+    """
+    Function to get article based on pmid
+    :param engine: params to connect to the db
+    :param pmid: id of the PM
+    :return: pmcid
+    """
+    query = (sa.select([Article.c.pmcid]).select_from(Article).where(Article.c.pmid == pmid))  # noqa
+    try:
+        async with engine.acquire() as connection:
+            async for row in connection.execute(query):
+                return row.pmcid
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_pmid()") from e
 
 
 async def get_job_results(engine, job_id):
@@ -87,33 +147,172 @@ async def get_job_results(engine, job_id):
     :return: list of dicts containing the results
     """
     results = []
-    sql = (sa.select([Result.c.title, Result.c.title_value, Result.c.abstract, Result.c.abstract_value, Result.c.body,
-                      Result.c.body_value, Result.c.author, Result.c.pmcid, Result.c.pmid, Result.c.doi, Result.c.year,
-                      Result.c.journal,Result.c.score, Result.c.cited_by])
-           .select_from(Result)
-           .where(Result.c.job_id == job_id))  # noqa
+    output = []
+    results_sql = (sa.select([Result.c.pmcid, Result.c.id_in_title, Result.c.id_in_abstract, Result.c.id_in_body])
+                   .select_from(Result)
+                   .where(Result.c.job_id == job_id))  # noqa
 
     try:
         async with engine.acquire() as connection:
-            async for row in connection.execute(sql):
-                # add result
+            async for row in connection.execute(results_sql):
+                # get results
                 results.append({
-                    'title': row[0],
-                    'title_value': row[1],
-                    'abstract': row[2],
-                    'abstract_value': row[3],
-                    'body': row[4],
-                    'body_value': row[5],
-                    'author': row[6],
-                    'pmcid': row[7],
-                    'pmid': row[8],
-                    'doi': row[9],
-                    'year': row[10],
-                    'journal': row[11],
-                    'score': row[12],
-                    'cited_by': row[13],
+                    'pmcid': row.pmcid,
+                    'id_in_title': row.id_in_title,
+                    'id_in_abstract': row.id_in_abstract,
+                    'id_in_body': row.id_in_body
                 })
-            return results
 
+            for result in results:
+                article_sql = (sa.select([Article.c.title, Article.c.abstract, Article.c.author, Article.c.pmid,
+                                          Article.c.doi, Article.c.year, Article.c.journal, Article.c.score,
+                                          Article.c.cited_by, Article.c.retracted])
+                               .select_from(Article)
+                               .where(Article.c.pmcid == result['pmcid']))  # noqa
+                async for row in connection.execute(article_sql):
+                    # get article
+                    output.append({
+                        'job_id': job_id,
+                        'pmcid': result['pmcid'],
+                        'title': row.title,
+                        'abstract': row.abstract,
+                        'author': row.author,
+                        'pmid': row.pmid,
+                        'doi': row.doi,
+                        'year': row.year,
+                        'journal': row.journal,
+                        'score': row.score,
+                        'cited_by': row.cited_by,
+                        'retracted': row.retracted,
+                        'id_in_title': result['id_in_title'],
+                        'id_in_abstract': result['id_in_abstract'],
+                        'id_in_body': result['id_in_body'],
+                    })
+
+            return output
+
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
+
+
+async def get_articles(engine):
+    """
+    Function to get the data that will be used by the search index
+    :param engine: params to connect to the db
+    :return: list of dicts containing articles
+    """
+    articles = []
+    article_sql = (sa.select([Article.c.pmcid, Article.c.title, Article.c.abstract, Article.c.author, Article.c.pmid,
+                              Article.c.doi, Article.c.year, Article.c.journal, Article.c.score, Article.c.cited_by])
+                   .select_from(Article)
+                   .where(~Article.c.retracted))  # noqa
+
+    try:
+        async with engine.acquire() as connection:
+            async for row in connection.execute(article_sql):
+                # get all articles
+                articles.append({
+                    'pmcid': row['pmcid'],
+                    'title': row.title,
+                    'abstract': row.abstract,
+                    'author': row.author,
+                    'pmid': row.pmid,
+                    'doi': row.doi,
+                    'year': str(row.year),
+                    'journal': row.journal,
+                    'score': str(row.score),
+                    'cited_by': str(row.cited_by),
+                })
+
+            for article in articles:
+                # get the results of each article
+                results = []
+                results_sql = (sa.select([Result.c.id, Result.c.job_id, Result.c.id_in_title, Result.c.id_in_abstract,
+                                          Result.c.id_in_body])
+                               .select_from(Result)
+                               .where(Result.c.pmcid == article['pmcid']))  # noqa
+
+                async for row in connection.execute(results_sql):
+                    results.append({
+                        'id': row.id,
+                        'job_id': row.job_id,
+                        'id_in_title': str(row.id_in_title),
+                        'id_in_abstract': str(row.id_in_abstract),
+                        'id_in_body': str(row.id_in_body)
+                    })
+
+                for result in results:
+                    # get display_id
+                    display_id = sa.select([Job.c.display_id]).select_from(Job).where(Job.c.job_id == result['job_id'])
+                    async for row in connection.execute(display_id):
+                        result['display_id'] = row.display_id
+
+                    # get abstract sentence
+                    abstract_sql = sa.text(
+                        '''SELECT sentence FROM abstract_sentence 
+                        WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
+                    )
+                    async for row in connection.execute(abstract_sql, result_id=result['id']):
+                        result['abstract_sentence'] = row.sentence
+
+                    # get body sentence
+                    body_sql = sa.text(
+                        '''SELECT sentence FROM body_sentence 
+                        WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
+                    )
+                    async for row in connection.execute(body_sql, result_id=result['id']):
+                        result['body_sentence'] = row.sentence
+
+                article['result'] = results
+
+                # check if this article was manually annotated for any URS
+                manually_annotated = []
+                manually_annotated_sql = (sa.select([ManuallyAnnotated.c.urs])
+                                          .select_from(ManuallyAnnotated)
+                                          .where(ManuallyAnnotated.c.pmcid == article['pmcid']))  # noqa
+
+                async for row in connection.execute(manually_annotated_sql):
+                    manually_annotated.append(row.urs.upper())
+
+                article['manually_annotated'] = manually_annotated
+
+            return articles
+
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
+
+
+async def get_all_pmcid(engine):
+    """
+    Function to get all pmcid that were not retracted
+    :param engine: params to connect to the db
+    :return: list of pmcid
+    """
+    articles = []
+    article_sql = (sa.select([Article.c.pmcid]).select_from(Article).where(~Article.c.retracted))  # noqa
+
+    try:
+        async with engine.acquire() as connection:
+            async for row in connection.execute(article_sql):
+                articles.append(row.pmcid)
+            return articles
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError(str(e)) from e
+
+
+async def retracted_article(engine, pmcid):
+    """
+    Function to set article as retracted
+    :param engine: params to connect to the db
+    :param pmcid: article that was retracted
+    :return: None
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                query = sa.text('''UPDATE article SET retracted=:retracted WHERE pmcid=:pmcid''')
+                await connection.execute(query, retracted=True, pmcid=pmcid)
+            except Exception as e:
+                logging.debug("Failed to retracted_article. Error: {}.".format(e))
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e

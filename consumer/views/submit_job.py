@@ -24,7 +24,8 @@ from consumer.settings import EUROPE_PMC
 from database.consumers import get_ip, set_consumer_status_and_job_id
 from database.job import get_hit_count, get_search_date, save_hit_count, set_job_status
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
-from database.results import get_pmcid, save_results
+from database.results import get_pmcid, get_pmcid_in_result, save_article, save_result, save_abstract_sentences, \
+    save_body_sentences
 from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import ParseError
 
@@ -54,13 +55,13 @@ async def submit_job(request):
         raise web.HTTPBadRequest(text=str(e)) from e
 
     # update consumer
-    await set_consumer_status_and_job_id(engine, consumer_ip, CONSUMER_STATUS_CHOICES.busy, job_id)
+    await set_consumer_status_and_job_id(engine, consumer_ip, CONSUMER_STATUS_CHOICES.busy, job_id.lower())
 
     # set job status
-    await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.started)
+    await set_job_status(engine, job_id.lower(), status=JOB_STATUS_CHOICES.started)
 
     # get the last search date for this job_id, if any
-    last_search = await get_search_date(engine, job_id)
+    last_search = await get_search_date(engine, job_id.lower())
     last_search = last_search.date() if last_search else None
 
     # spawn job in the background and return 201
@@ -77,8 +78,8 @@ async def articles_list(job_id, date, page="*"):
     :return: list of "PMCIDs" and the next page, if any
     """
     search_date = f' AND (FIRST_PDATE:[{date} TO {datetime.date.today().strftime("%Y-%m-%d")}])' if date else ''
-    query = f'search?query=("{job_id}" AND "rna" AND IN_EPMC:Y AND OPEN_ACCESS:Y ' \
-            f'AND NOT SRC:PPR{search_date})&pageSize=500&cursorMark={page}'
+    query = f'search?query=("{job_id}" AND ("rna" OR "mrna" OR "ncrna" OR "lncrna" OR "rrna" OR "sncrna") ' \
+            f'AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR{search_date})&pageSize=500&cursorMark={page}'
 
     # fetch articles
     try:
@@ -130,7 +131,6 @@ async def seek_references(engine, job_id, consumer_ip, date):
     :param date: last search date for this job_id
     :return: save the results in the database and make the consumer available for a new search
     """
-    results = []
     start = datetime.datetime.now()
     regex = r"(^|\s|\()" + re.escape(job_id.lower()) + "($|[\s.,;?)])"
     pmcid_list = []
@@ -148,8 +148,8 @@ async def seek_references(engine, job_id, consumer_ip, date):
                 pmcid_list.append(item)
 
     if date and pmcid_list:
-        # filter pmcid_list to only search for articles that are not in the database
-        pmcid_in_db = await get_pmcid(engine, job_id)
+        # filter pmcid_list to only search for articles/results that are not in the database
+        pmcid_in_db = await get_pmcid_in_result(engine, job_id.lower())
         pmcid_list = [item for item in pmcid_list if item['pmcid'] not in pmcid_in_db]
 
     for element in pmcid_list:
@@ -187,8 +187,10 @@ async def seek_references(engine, job_id, consumer_ip, date):
                 logging.debug("Job_id {} not found for pmcid {}.".format(job_id, element["pmcid"]))
                 continue
 
-            # remove tables and figures
-            full_txt = re.sub(r"(?is)<(counts|table-wrap|table|fig-group|fig).*?>.*?(</\1>)", "", get_article)
+            # remove tables, figures and supplementary material
+            full_txt = re.sub(
+                r"(?is)<(counts|table-wrap|table|fig-group|fig|supplementary-material).*?>.*?(</\1>)", "", get_article
+            )
 
             # parse using ElementTree
             try:
@@ -199,7 +201,8 @@ async def seek_references(engine, job_id, consumer_ip, date):
                               "Error message: {} ".format(element["pmcid"], e))
 
             if article:
-                response = {}
+                article_response = {}
+                result_response = {}
 
                 # if the trans-title-group element is found it is because this article was not written in English
                 trans_title = article.find("./front/article-meta/title-group/trans-title-group")
@@ -211,147 +214,182 @@ async def seek_references(engine, job_id, consumer_ip, date):
                 get_title = article.find("./front/article-meta/title-group/article-title")
                 try:
                     title = ''.join(get_title.itertext()).strip()
-                    response["title"] = title
+                    article_response["title"] = title
                 except AttributeError:
                     # skip the current iteration
                     logging.debug("Title not found for pmcid {} and job_id {}".format(element["pmcid"], job_id))
                     continue
 
                 # check if the title has the job_id
-                response["title_value"] = True if job_id.lower() in title.lower() else False
+                result_response["id_in_title"] = True if job_id.lower() in title.lower() else False
+
+                # get abstract
+                get_abstract_tags = article.findall(".//abstract")
+                abstract_types = ['teaser', 'web-summary', 'summary', 'precis', 'graphical', 'author-highlights']
+                get_abstract_tags = [
+                    item for item in get_abstract_tags if
+                    not any(elem in item.attrib.values() for elem in abstract_types)
+                ]
+                abstract_text = [" ".join(item.itertext()) for item in get_abstract_tags]
+                abstract = " ".join(abstract_text).replace(" .", ".").replace("  ", " ")
+                article_response["abstract"] = abstract
 
                 # check if the abstract has the job_id
-                get_abstract_tags = article.findall(".//abstract//*")
-                abstract_txt = ["".join(item.itertext()) for item in get_abstract_tags if item.text]
-                abstract_txt = ". ".join(abstract_txt)
-                abstract_txt = " ".join(abstract_txt.split())
-                sentences = nltk.sent_tokenize(abstract_txt)
-                abstract_sentences = [
-                    sentence.replace("..", ".") for sentence in sentences
-                    if re.search(regex, sentence.lower()) and len(sentence.split()) > 2
+                abstract_sentences = []
+                for sentence in nltk.sent_tokenize(abstract):
+                    if re.search(regex, sentence.lower()):
+                        abstract_sentences.append(sentence)
+                result_response["id_in_abstract"] = True if abstract_sentences else False
+
+                # get body + all tags in it
+                get_body_tags = article.findall(".//body//*")
+
+                # common tags: 'sec', 'title', 'p', 'italic', 'bold', 'sup', 'sub', 'underline', 'sc', 'named-content',
+                # 'list', 'list-item', 'uri', 'abbrev'
+
+                # avoid text from the following tags as they result in bad sentences
+                avoid_tags = [
+                    'xref', 'ext-link', 'media', 'caption', 'monospace', 'label', 'disp-formula', 'inline-formula',
+                    'inline-graphic', 'def', 'def-list', 'def-item', 'term', 'funding-source', 'award-id', 'graphic',
+                    'alternatives', 'tex-math', 'sec-meta', 'kwd-group', 'kwd', 'object-id',
+                    '{http://www.w3.org/1998/Math/MathML}math', '{http://www.w3.org/1998/Math/MathML}mrow',
+                    '{http://www.w3.org/1998/Math/MathML}mi', '{http://www.w3.org/1998/Math/MathML}mo',
+                    '{http://www.w3.org/1998/Math/MathML}msub', '{http://www.w3.org/1998/Math/MathML}mn',
+                    '{http://www.w3.org/1998/Math/MathML}msup', '{http://www.w3.org/1998/Math/MathML}mtext',
+                    '{http://www.w3.org/1998/Math/MathML}msubsup', '{http://www.w3.org/1998/Math/MathML}mover',
+                    '{http://www.w3.org/1998/Math/MathML}mstyle', '{http://www.w3.org/1998/Math/MathML}munderover',
+                    '{http://www.w3.org/1998/Math/MathML}mspace', '{http://www.w3.org/1998/Math/MathML}mfenced',
+                    '{http://www.w3.org/1998/Math/MathML}mpadded', '{http://www.w3.org/1998/Math/MathML}mfrac',
+                    '{http://www.w3.org/1998/Math/MathML}msqrt'
                 ]
-                response["abstract"] = str(max(abstract_sentences, key=len)) if abstract_sentences else ""
-                response["abstract_value"] = True if abstract_sentences else False
+                get_body_tags = [
+                    "".join(item.itertext()) for item in get_body_tags if item.text and item.tag not in avoid_tags
+                ]
 
                 # check if the body has the job_id
-                get_body_tags = article.findall(".//body//*")
-                body_txt = ["".join(item.itertext()) for item in get_body_tags if item.text]
-                body_txt = ". ".join(body_txt)
-                body_txt = " ".join(body_txt.split())
-                sentences = nltk.sent_tokenize(body_txt)
-                body_sentences = [
-                    sentence.replace("..", ".") for sentence in sentences
-                    if re.search(regex, sentence.lower()) and len(sentence.split()) > 2
-                ]
-                body_sentences_filtered = [sentence for sentence in body_sentences if "(" not in sentence]
+                body_sentences = []
+                for item in get_body_tags:
+                    for sentence in nltk.sent_tokenize(item):
+                        if re.search(regex, sentence.lower()) and len(sentence.split()) > 3:
+                            body_sentences.append(sentence)
 
-                if body_sentences_filtered:
-                    response["body"] = str(max(body_sentences_filtered, key=len))
-                elif body_sentences:
-                    response["body"] = str(max(body_sentences, key=len))
+                if abstract_sentences and not body_sentences:
+                    result_response["id_in_body"] = False
+                elif not abstract_sentences and not body_sentences:
+                    result_response["id_in_body"] = True
+                    body_sentences.append("%s found in an image, table or supplementary material" % job_id)
                 else:
-                    response["body"] = job_id + " found in an image or table"
+                    result_response["id_in_body"] = True
 
-                response["body_value"] = True if response["body"] else False
+                # add job_id and pmcid
+                result_response["job_id"] = job_id.lower()
+                result_response["pmcid"] = element["pmcid"]
 
-                # get authors of the article
-                get_contrib_group = article.find("./front/article-meta/contrib-group")
-                response['author'] = ''
+                # check if this article is already in the database
+                article_in_db = await get_pmcid(engine, element["pmcid"])
 
-                try:
-                    get_authors = get_contrib_group.findall(".//name")
-                    authors = []
-                    for author in get_authors:
-                        surname = author.find('surname').text if author.find('surname').text else ''
-                        given_names = author.find('given-names').text if author.find('given-names').text else ''
-                        if surname and given_names:
-                            authors.append(surname + ", " + given_names)
-                        elif surname or given_names:
-                            authors.append(surname + given_names)
-                    response["author"] = '; '.join(authors)
-                except AttributeError:
-                    pass
+                if not article_in_db:
+                    # get authors of the article
+                    get_contrib_group = article.find("./front/article-meta/contrib-group")
+                    article_response['author'] = ''
 
-                # get pmid and doi
-                article_meta = article.findall("./front/article-meta/article-id")
-                response['doi'] = ''
-                response['pmid'] = ''
-
-                for item in article_meta:
-                    if item.attrib == {'pub-id-type': 'doi'}:
-                        response["doi"] = item.text
-                    elif item.attrib == {'pub-id-type': 'pmid'}:
-                        response["pmid"] = item.text
-
-                # get year
-                response["year"] = 0
-                get_year = article.findall("./front/article-meta/pub-date")
-                pub_type = ['epub', 'ppub', 'pub']
-                for item in get_year:
-                    if set(pub_type).intersection(item.attrib.values()):
-                        year = int(item.find('year').text) if item.find('year').text else 0
-                        response["year"] = year
-
-                # get journal
-                response["journal"] = ''
-                get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
-                try:
-                    response["journal"] = get_journal.text
-                except AttributeError:
-                    # maybe it is in a different element
-                    journal = article.find("./front/journal-meta/journal-title")
                     try:
-                        response["journal"] = journal.text
+                        get_authors = get_contrib_group.findall(".//name")
+                        authors = []
+                        for author in get_authors:
+                            surname = author.find('surname').text if author.find('surname').text else ''
+                            given_names = author.find('given-names').text if author.find('given-names').text else ''
+                            if surname and given_names:
+                                authors.append(surname + ", " + given_names)
+                            elif surname or given_names:
+                                authors.append(surname + given_names)
+                        article_response["author"] = '; '.join(authors)
                     except AttributeError:
-                        logging.debug("Journal not found for pmcid {}".format(element["pmcid"]))
+                        pass
 
-                # add job_id
-                response["job_id"] = job_id
+                    # get pmid and doi
+                    article_meta = article.findall("./front/article-meta/article-id")
+                    article_response['doi'] = ''
+                    article_response['pmid'] = ''
 
-                # add pmcid
-                response["pmcid"] = element["pmcid"]
+                    for item in article_meta:
+                        if item.attrib == {'pub-id-type': 'doi'}:
+                            article_response["doi"] = item.text
+                        elif item.attrib == {'pub-id-type': 'pmid'}:
+                            article_response["pmid"] = item.text
 
-                # add citation
-                response["cited_by"] = element["cited_by"]
+                    # get year
+                    article_response["year"] = 0
+                    get_year = article.findall("./front/article-meta/pub-date")
+                    pub_type = ['epub', 'ppub', 'pub']
+                    for item in get_year:
+                        if set(pub_type).intersection(item.attrib.values()):
+                            year = int(item.find('year').text) if item.find('year').text else 0
+                            article_response["year"] = year
 
-                # add score
-                response['score'] = len(abstract_sentences) + len(body_sentences)
+                    # get journal
+                    article_response["journal"] = ''
+                    get_journal = article.find("./front/journal-meta/journal-title-group/journal-title")
+                    try:
+                        article_response["journal"] = get_journal.text
+                    except AttributeError:
+                        # maybe it is in a different element
+                        journal = article.find("./front/journal-meta/journal-title")
+                        try:
+                            article_response["journal"] = journal.text
+                        except AttributeError:
+                            logging.debug("Journal not found for pmcid {}".format(element["pmcid"]))
+
+                    # add pmcid
+                    article_response["pmcid"] = element["pmcid"]
+
+                    # add citation
+                    article_response["cited_by"] = element["cited_by"]
+
+                    # add score
+                    article_response['score'] = len(abstract_sentences) + len(body_sentences)
+
+                    # add retracted info
+                    article_response['retracted'] = False
+
+                    # save article
+                    await save_article(engine, article_response)
+
+                # save result
+                result_id = await save_result(engine, result_response)
+
+                if result_id:
+                    # save abstract sentences
+                    abstract_sentences = [{"result_id": result_id, "sentence": item} for item in abstract_sentences]
+                    if abstract_sentences:
+                        await save_abstract_sentences(engine, abstract_sentences)
+
+                    # save body sentences
+                    body_sentences = [{"result_id": result_id, "sentence": item} for item in body_sentences]
+                    if body_sentences:
+                        await save_body_sentences(engine, body_sentences)
 
                 hit_count += 1
-                results.append(response)
 
-    if results:
-        # save results in DB
-        await save_results(engine, job_id, results)
-
+    if hit_count > 0:
         logging.debug("Saving {} result(s) in DB. Search performed in {} seconds".format(
-            len(results), (datetime.datetime.now() - start).total_seconds())
+            str(hit_count), (datetime.datetime.now() - start).total_seconds())
         )
-
-        # set job status
-        await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.success)
-
-    elif pmcid_list and not results:
-        # if there is pmcid, there must be results
-        logging.debug("Could not find job_id for {}.".format(pmcid_list))
-
-        # set job status
-        await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.error)
 
     elif not pmcid_list:
         # if pmcid is not found so no articles were actually found
         logging.debug("No results found for job_id {}.".format(job_id))
 
-        # set job status
-        await set_job_status(engine, job_id, status=JOB_STATUS_CHOICES.success)
-
     # get hit_count if this search is to update a job_id
     if date:
-        current_hit_count = await get_hit_count(engine, job_id)
+        current_hit_count = await get_hit_count(engine, job_id.lower())
         hit_count = hit_count + current_hit_count
 
     # save hit_count
-    await save_hit_count(engine, job_id, hit_count)
+    await save_hit_count(engine, job_id.lower(), hit_count)
+
+    # set job status
+    await set_job_status(engine, job_id.lower(), status=JOB_STATUS_CHOICES.success)
 
     # update consumer
     await set_consumer_status_and_job_id(engine, consumer_ip, CONSUMER_STATUS_CHOICES.available, "")

@@ -84,26 +84,51 @@ Job = sa.Table(
     sa.Column('hit_count', sa.Integer, nullable=True),
 )
 
-"""Results of a specific Job"""
-Result = sa.Table(
-    'result',
+"""Info about a specific article"""
+Article = sa.Table(
+    'article',
     metadata,
-    sa.Column('result_id', sa.Integer, primary_key=True),
-    sa.Column('job_id', sa.String(100), sa.ForeignKey('job.job_id')),
+    sa.Column('pmcid', sa.String(15), primary_key=True),
     sa.Column('title', sa.Text),
-    sa.Column('title_value', sa.Boolean),
     sa.Column('abstract', sa.Text),
-    sa.Column('abstract_value', sa.Boolean),
-    sa.Column('body', sa.Text),
-    sa.Column('body_value', sa.Boolean),
     sa.Column('author', sa.Text),
-    sa.Column('pmcid', sa.String(100)),
     sa.Column('pmid', sa.String(100)),
     sa.Column('doi', sa.String(100)),
     sa.Column('year', sa.Integer()),
     sa.Column('journal', sa.String(255)),
     sa.Column('score', sa.Integer()),
     sa.Column('cited_by', sa.Integer()),
+    sa.Column('retracted', sa.Boolean),
+)
+
+"""Result of a specific Job"""
+Result = sa.Table(
+    'result',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('pmcid', sa.String(15), sa.ForeignKey('article.pmcid')),
+    sa.Column('job_id', sa.String(100), sa.ForeignKey('job.job_id')),
+    sa.Column('id_in_title', sa.Boolean),
+    sa.Column('id_in_abstract', sa.Boolean),
+    sa.Column('id_in_body', sa.Boolean),
+)
+
+"""Sentences extracted from the abstract"""
+AbstractSentence = sa.Table(
+    'abstract_sentence',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('result_id', sa.Integer, sa.ForeignKey('result.id')),
+    sa.Column('sentence', sa.Text),
+)
+
+"""Sentences extracted from the body"""
+BodySentence = sa.Table(
+    'body_sentence',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('result_id', sa.Integer, sa.ForeignKey('result.id')),
+    sa.Column('sentence', sa.Text),
 )
 
 """Job related to which DB"""
@@ -114,7 +139,15 @@ Database = sa.Table(
     sa.Column('name', sa.String(50)),
     sa.Column('job_id', sa.String(100), sa.ForeignKey('job.job_id')),
     sa.Column('primary_id', sa.String(100), sa.ForeignKey('job.job_id'), nullable=True),
-    sa.Column('manually_annotated', sa.Boolean),
+)
+
+"""Manually annotated articles"""
+ManuallyAnnotated = sa.Table(
+    'manually_annotated',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('pmcid', sa.String(15), sa.ForeignKey('article.pmcid')),
+    sa.Column('urs', sa.String(100), sa.ForeignKey('job.job_id')),
 )
 
 # Migrations
@@ -137,7 +170,11 @@ async def migrate(env):
 
     async with engine:
         async with engine.acquire() as connection:
+            await connection.execute('DROP TABLE IF EXISTS body_sentence')
+            await connection.execute('DROP TABLE IF EXISTS abstract_sentence')
+            await connection.execute('DROP TABLE IF EXISTS manually_annotated')
             await connection.execute('DROP TABLE IF EXISTS result')
+            await connection.execute('DROP TABLE IF EXISTS article')
             await connection.execute('DROP TABLE IF EXISTS database')
             await connection.execute('DROP TABLE IF EXISTS job')
             await connection.execute('DROP TABLE IF EXISTS consumer')
@@ -161,25 +198,47 @@ async def migrate(env):
             ''')
 
             await connection.execute('''
-                CREATE TABLE result (
-                  result_id SERIAL PRIMARY KEY,
-                  job_id VARCHAR(100),
+                CREATE TABLE article (
+                  pmcid VARCHAR(15) PRIMARY KEY,
                   title TEXT,
-                  title_value BOOLEAN,
                   abstract TEXT,
-                  abstract_value BOOLEAN,
-                  body TEXT,
-                  body_value BOOLEAN,
                   author TEXT,
-                  pmcid VARCHAR(100),
                   pmid VARCHAR(100),
                   doi VARCHAR(100),
                   year INTEGER,
                   journal VARCHAR(255),
                   score INTEGER,
                   cited_by INTEGER,
+                  retracted BOOLEAN)
+            ''')
+
+            await connection.execute('''
+                CREATE TABLE result (
+                  id SERIAL PRIMARY KEY,
+                  pmcid VARCHAR(15),
+                  job_id VARCHAR(100),
+                  id_in_title BOOLEAN,
+                  id_in_abstract BOOLEAN,
+                  id_in_body BOOLEAN,
+                  FOREIGN KEY (pmcid) REFERENCES article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
-                  CONSTRAINT jobid_pmcid UNIQUE (job_id, pmcid))
+                  CONSTRAINT pmcid_job_id UNIQUE (pmcid, job_id))
+            ''')
+
+            await connection.execute('''
+                CREATE TABLE abstract_sentence (
+                  id SERIAL PRIMARY KEY,
+                  result_id INTEGER,
+                  sentence TEXT,
+                  FOREIGN KEY (result_id) REFERENCES result(id) ON UPDATE CASCADE ON DELETE CASCADE)
+            ''')
+
+            await connection.execute('''
+                CREATE TABLE body_sentence (
+                  id SERIAL PRIMARY KEY,
+                  result_id INTEGER,
+                  sentence TEXT,
+                  FOREIGN KEY (result_id) REFERENCES result(id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
             await connection.execute('''
@@ -188,11 +247,22 @@ async def migrate(env):
                   name VARCHAR(50),
                   job_id VARCHAR(100),
                   primary_id VARCHAR(100),
-                  manually_annotated BOOLEAN,
                   FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
                   FOREIGN KEY (primary_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
                   CONSTRAINT name_job UNIQUE (name, job_id, primary_id))
             ''')
 
+            await connection.execute('''
+                CREATE TABLE manually_annotated (
+                  id SERIAL PRIMARY KEY,
+                  pmcid VARCHAR(15),
+                  urs VARCHAR(100),
+                  FOREIGN KEY (pmcid) REFERENCES article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
+                  FOREIGN KEY (urs) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
+            ''')
+
             await connection.execute('''CREATE INDEX on result (job_id)''')
             await connection.execute('''CREATE INDEX on database (job_id)''')
+            await connection.execute('''CREATE INDEX on manually_annotated (urs)''')
+            await connection.execute('''CREATE INDEX on abstract_sentence (result_id)''')
+            await connection.execute('''CREATE INDEX on body_sentence (result_id)''')

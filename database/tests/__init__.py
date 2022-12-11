@@ -12,4 +12,3 @@ limitations under the License.
 """
 
 from .test_base import DBTestCase
-from .test_jobs import SaveJobTestCase, SearchPerformedTestCase

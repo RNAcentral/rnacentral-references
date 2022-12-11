@@ -11,7 +11,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import datetime
 import json
 import logging
 
@@ -20,7 +19,7 @@ from aiohttp.test_utils import AioHTTPTestCase
 
 from producer.__main__ import create_app
 from producer.views import job_result
-from database.models import Job, JOB_STATUS_CHOICES, Result
+from database.models import Article, Job, Result
 from database.settings import get_postgres_credentials
 
 
@@ -44,61 +43,41 @@ class JobResultsTestCase(AioHTTPTestCase):
         await super().setUpAsync()
 
         async with self.app['engine'].acquire() as connection:
-            await connection.execute(
-                Job.insert().values(
-                    job_id="mir-21",
-                    submitted=datetime.datetime.now(),
-                    status=JOB_STATUS_CHOICES.started
-                )
-            )
-
-            await connection.scalar(
-                Result.insert().values(
-                    job_id="mir-21",
-                    title='Lorem ipsum dolor sit amet',
-                    title_value=False,
-                    abstract='',
-                    abstract_value=False,
-                    body='Lorem ipsum miR-21 dolor',
-                    body_value=True,
-                    author='de Tal, Fulano',
-                    pmcid='123456789',
-                    pmid='123456789',
-                    doi='10.1234/journal.123',
-                    year=2021,
-                    journal='foo',
-                    score=2,
-                    cited_by=1
-                )
-            )
+            self.job_id = 'urs0005'
+            self.pmcid = '123456780'
+            await connection.execute(Job.insert().values(job_id=self.job_id))
+            await connection.execute(Article.insert().values(pmcid=self.pmcid))
+            await connection.execute(Result.insert().values(job_id=self.job_id, pmcid=self.pmcid))
 
     async def tearDownAsync(self):
         async with self.app['engine'].acquire() as connection:
             await connection.execute('DELETE FROM result')
+            await connection.execute('DELETE FROM article')
             await connection.execute('DELETE FROM job')
 
         await super().tearDownAsync()
 
     @unittest_run_loop
     async def test_job_result_success(self):
-        async with self.client.get(path='/api/results/mir-21') as response:
+        async with self.client.get(path='/api/results/urs0005') as response:
             assert response.status == 200
             text = await response.text()
             assert json.loads(text) == [{
-                "title": "Lorem ipsum dolor sit amet",
-                "title_value": False,
-                "abstract": "",
-                "abstract_value": False,
-                "body": "Lorem ipsum miR-21 dolor",
-                "body_value": True,
-                "author": "de Tal, Fulano",
-                "pmcid": "123456789",
-                "pmid": "123456789",
-                "doi": "10.1234/journal.123",
-                "year": 2021,
-                "journal": "foo",
-                "score": 2,
-                "cited_by": 1
+                'job_id': self.job_id,
+                'pmcid': self.pmcid,
+                'title': None,
+                'abstract': None,
+                'author': None,
+                'pmid': None,
+                'doi': None,
+                'year': None,
+                'journal': None,
+                'score': None,
+                'cited_by': None,
+                'retracted': None,
+                'id_in_title': None,
+                'id_in_abstract': None,
+                'id_in_body': None,
             }]
 
     @unittest_run_loop

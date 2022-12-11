@@ -47,7 +47,6 @@ async def create_xml_file(results):
         ET.SubElement(additional_fields, "field", name="database").text = item["database"]
         ET.SubElement(additional_fields, "field", name="job_id").text = item["job_id"]
         ET.SubElement(additional_fields, "field", name="primary_id").text = item["primary_id"]
-        ET.SubElement(additional_fields, "field", name="manually_annotated").text = item["manually_annotated"]
 
     ET.SubElement(database, "entry_count").text = str(len(results))
 
@@ -80,13 +79,12 @@ async def search_index():
 
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
         async with engine.acquire() as connection:
-            query = sa.text('''SELECT name, job_id, primary_id, manually_annotated FROM database''')
+            query = sa.text('''SELECT name, job_id, primary_id FROM database''')
             async for row in connection.execute(query):
                 temp_results.append({
                     "database": row.name,
                     "job_id": row.job_id,
                     "primary_id": row.primary_id,
-                    "manually_annotated": "t" if row.manually_annotated is True else "f"
                 })
 
                 if len(temp_results) > 300000:

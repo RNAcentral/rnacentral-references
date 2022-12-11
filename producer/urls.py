@@ -13,13 +13,14 @@ limitations under the License.
 from aiohttp import web
 from aiohttp_swagger import setup_swagger
 
-from producer.views import index, job_result, submit_job
+from producer.views import index, job_result, submit_job, statistics
 
 
 def setup_routes(app):
     app.add_routes([web.get('/', index.index)])
     app.add_routes([web.post('/api/submit-job', submit_job.submit_job)])
     app.add_routes([web.get('/api/results/{job_id:[A-Za-z0-9:_-]+}', job_result.job_result)])
+    app.add_routes([web.get('/api/hit_count', statistics.urs_hit_count)])
 
     # setup swagger documentation
     setup_swagger(app, swagger_url="api/doc", title="RNAcentral references", description="")

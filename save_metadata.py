@@ -51,8 +51,6 @@ async def save_metadata():
 
     async with create_engine(user=user, database=database, host=host, password=password) as engine:
         results = []
-        temp_job_id = None
-        temp_primary_id = None
 
         with open(filename, "r") as input_file:
             while line := input_file.readline():
@@ -64,15 +62,7 @@ async def save_metadata():
                     primary_id = line[1].lower()
 
                     # create metadata
-                    if db_name == 'rfam':
-                        if primary_id and primary_id != temp_primary_id:
-                            results.append({"job_id": primary_id, "name": db_name, "primary_id": None})
-                        if job_id and job_id != temp_job_id:
-                            results.append({"job_id": job_id, "name": db_name, "primary_id": primary_id})
-                        temp_job_id = job_id
-                        temp_primary_id = primary_id if len(line) == 3 else None
-
-                    elif db_name == 'refseq' or db_name == 'wormbase':
+                    if db_name == 'rfam' or db_name == 'refseq' or db_name == 'wormbase':
                         # TODO: Check if it is still necessary to query the database.
                         # The list of ids has been updated and duplicate ids have been removed.
                         if primary_id and not await search_metadata(engine, primary_id, db_name, None):
