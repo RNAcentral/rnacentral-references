@@ -14,6 +14,10 @@ limitations under the License.
 import os
 import pathlib
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 """
 Any setting defined here can be overridden by:
