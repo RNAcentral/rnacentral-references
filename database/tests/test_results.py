@@ -49,7 +49,7 @@ class ResultsTestCase(DBTestCase):
         new_pmcid = "PMC123456"
         await save_article(self.app['engine'], {"pmcid": new_pmcid})
         async with self.app['engine'].acquire() as connection:
-            query = sa.text('''SELECT pmcid FROM article''')
+            query = sa.text('''SELECT pmcid FROM litscan_article''')
             result = []
             async for row in await connection.execute(query):
                 result.append(row.pmcid)
