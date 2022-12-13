@@ -249,7 +249,7 @@ async def get_articles(engine):
 
                     # get abstract sentence
                     abstract_sql = sa.text(
-                        '''SELECT sentence FROM abstract_sentence 
+                        '''SELECT sentence FROM litscan_abstract_sentence 
                         WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
                     )
                     async for row in connection.execute(abstract_sql, result_id=result['id']):
@@ -257,7 +257,7 @@ async def get_articles(engine):
 
                     # get body sentence
                     body_sql = sa.text(
-                        '''SELECT sentence FROM body_sentence 
+                        '''SELECT sentence FROM litscan_body_sentence 
                         WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
                     )
                     async for row in connection.execute(body_sql, result_id=result['id']):
@@ -310,7 +310,7 @@ async def retracted_article(engine, pmcid):
     try:
         async with engine.acquire() as connection:
             try:
-                query = sa.text('''UPDATE article SET retracted=:retracted WHERE pmcid=:pmcid''')
+                query = sa.text('''UPDATE litscan_article SET retracted=:retracted WHERE pmcid=:pmcid''')
                 await connection.execute(query, retracted=True, pmcid=pmcid)
             except Exception as e:
                 logging.debug("Failed to retracted_article. Error: {}.".format(e))

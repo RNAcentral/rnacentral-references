@@ -48,7 +48,7 @@ async def register_consumer_in_the_database(app):
     try:
         async with app['engine'].acquire() as connection:
             sql_query = sa.text('''
-                INSERT INTO consumer(ip, status, port)
+                INSERT INTO litscan_consumer(ip, status, port)
                 VALUES (:consumer_ip, :status, :port)
             ''')
             await connection.execute(
@@ -74,7 +74,7 @@ async def get_consumer_status(engine, consumer_ip):
         async with engine.acquire() as connection:
             sql_query = sa.text('''
                 SELECT status
-                FROM consumer
+                FROM litscan_consumer
                 WHERE ip=:consumer_ip
             ''')
             async for row in connection.execute(sql_query, consumer_ip=consumer_ip):
@@ -95,7 +95,7 @@ async def find_available_consumers(engine):
         async with engine.acquire() as connection:
             query = sa.text('''
                 SELECT ip, status, port, job_id
-                FROM consumer
+                FROM litscan_consumer
                 WHERE status=:status
             ''')
 
@@ -120,10 +120,10 @@ async def set_consumer_status_and_job_id(engine, consumer_ip, status, job_id):
     try:
         async with engine.acquire() as connection:
             query = sa.text('''
-                UPDATE consumer
+                UPDATE litscan_consumer
                 SET status=:status, job_id=:job_id
                 WHERE ip=:consumer_ip
-                RETURNING consumer.*;
+                RETURNING litscan_consumer.*;
             ''')
             await connection.execute(query, consumer_ip=consumer_ip, status=status, job_id=job_id)
 
