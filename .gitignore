@@ -12,3 +12,4 @@ __pycache__/
 *.pyc
 *.pyo
 Rfam Families and Aliases - Sheet1.csv
+organism_textmining_mentions.tsv
