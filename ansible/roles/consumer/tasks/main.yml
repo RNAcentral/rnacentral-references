@@ -43,6 +43,7 @@
         - "--exclude=/__pycache__"
         - "--exclude=/.*"
         - "--exclude=/venv"
+        - "--exclude=organism_textmining_mentions.tsv"
     tags: [ rsync ]
 
   - name: Create virtualenv and install packages
