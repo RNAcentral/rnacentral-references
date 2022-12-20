@@ -102,6 +102,15 @@ Article = sa.Table(
     sa.Column('retracted', sa.Boolean),
 )
 
+"""Organisms identified in the article"""
+Organism = sa.Table(
+    'litscan_organism',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('pmcid', sa.String(15), sa.ForeignKey('article.pmcid')),
+    sa.Column('organism', sa.Integer),
+)
+
 """Result of a specific Job"""
 Result = sa.Table(
     'litscan_result',
@@ -151,6 +160,15 @@ ManuallyAnnotated = sa.Table(
     sa.Column('urs', sa.String(100), sa.ForeignKey('job.job_id')),
 )
 
+"""Taxonomy-based retrieval of documents"""
+LoadOrganism = sa.Table(
+    'litscan_load_organism',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('pmid', sa.String(100)),
+    sa.Column('organism', sa.Integer),
+)
+
 # Migrations
 # ----------
 
@@ -172,6 +190,7 @@ async def migrate(env):
 
     async with engine:
         async with engine.acquire() as connection:
+            await connection.execute('DROP TABLE IF EXISTS litscan_organism')
             await connection.execute('DROP TABLE IF EXISTS litscan_body_sentence')
             await connection.execute('DROP TABLE IF EXISTS litscan_abstract_sentence')
             await connection.execute('DROP TABLE IF EXISTS litscan_manually_annotated')
@@ -212,6 +231,15 @@ async def migrate(env):
                   score INTEGER,
                   cited_by INTEGER,
                   retracted BOOLEAN)
+            ''')
+
+            await connection.execute('''
+                CREATE TABLE litscan_organism (
+                  id SERIAL PRIMARY KEY,
+                  pmcid VARCHAR(15),
+                  organism INTEGER,
+                  FOREIGN KEY (pmcid) REFERENCES litscan_article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
+                  CONSTRAINT pmcid_organism UNIQUE (pmcid, organism))
             ''')
 
             await connection.execute('''
@@ -261,6 +289,14 @@ async def migrate(env):
                   urs VARCHAR(100),
                   FOREIGN KEY (pmcid) REFERENCES litscan_article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
                   FOREIGN KEY (urs) REFERENCES litscan_job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
+            ''')
+
+            await connection.execute('''
+                CREATE TABLE litscan_load_organism (
+                  id SERIAL PRIMARY KEY,
+                  pmid VARCHAR(100),
+                  organism INTEGER,
+                  CONSTRAINT pmid_organism UNIQUE (pmid, organism))
             ''')
 
             await connection.execute('''CREATE INDEX ON litscan_article (pmcid) WHERE retracted IS FALSE''')
