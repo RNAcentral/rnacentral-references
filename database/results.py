@@ -316,3 +316,20 @@ async def retracted_article(engine, pmcid):
                 logging.debug("Failed to retracted_article. Error: {}.".format(e))
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e
+
+
+async def get_all_pmid(engine):
+    """
+    Function to get articles that contain pmid
+    :param engine: params to connect to the db
+    :return: list of dicts containing articles
+    """
+    query = (sa.select([Article.c.pmcid, Article.c.pmid]).select_from(Article).where(Article.c.pmid != None))  # noqa
+    pmid_list = []
+    try:
+        async with engine.acquire() as connection:
+            async for row in connection.execute(query):
+                pmid_list.append({"pmcid": row.pmcid, "pmid": row.pmid})
+            return pmid_list
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_pmid()") from e
