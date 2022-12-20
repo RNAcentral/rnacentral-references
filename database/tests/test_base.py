@@ -1,5 +1,5 @@
 """
-Copyright [2009-2019] EMBL-European Bioinformatics Institute
+Copyright [2009-present] EMBL-European Bioinformatics Institute
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -35,6 +35,8 @@ class DBTestCase(AioHTTPTestCase):
 
     async def tearDownAsync(self):
         async with self.app['engine'].acquire() as connection:
+            await connection.execute('DELETE FROM litscan_load_organism')
+            await connection.execute('DELETE FROM litscan_organism')
             await connection.execute('DELETE FROM litscan_result')
             await connection.execute('DELETE FROM litscan_article')
             await connection.execute('DELETE FROM litscan_database')

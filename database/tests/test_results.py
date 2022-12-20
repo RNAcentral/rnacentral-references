@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Article, Job, JOB_STATUS_CHOICES, Result, AbstractSentence, BodySentence
 from database.results import get_pmcid, get_pmcid_in_result, get_pmid, save_article, save_result, \
-    save_abstract_sentences, save_body_sentences, get_articles, retracted_article, get_all_pmcid
+    save_abstract_sentences, save_body_sentences, get_articles, retracted_article, get_all_pmcid, get_all_pmid
 from database.tests.test_base import DBTestCase
 
 
@@ -137,3 +137,8 @@ class ResultsTestCase(DBTestCase):
                 result = row.retracted
 
             assert result is True
+
+    @unittest_run_loop
+    async def test_get_all_pmid(self):
+        result = await get_all_pmid(self.app['engine'])
+        assert {"pmcid": self.pmcid, "pmid": self.pmid} in result
