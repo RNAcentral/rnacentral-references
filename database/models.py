@@ -169,6 +169,15 @@ LoadOrganism = sa.Table(
     sa.Column('organism', sa.Integer),
 )
 
+"""Get taxonomy name"""
+Taxonomy = sa.Table(
+    'rnc_taxonomy',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('name', sa.String(255)),
+)
+
+
 # Migrations
 # ----------
 
