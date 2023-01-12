@@ -15,7 +15,7 @@ import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Article, Result, AbstractSentence, BodySentence, Job, ManuallyAnnotated
+from database.models import Article, Result, AbstractSentence, BodySentence, Job, ManuallyAnnotated, Organism, Taxonomy
 
 
 async def save_article(engine, result):
@@ -275,6 +275,26 @@ async def get_articles(engine):
                     manually_annotated.append(row.urs.upper())
 
                 article['manually_annotated'] = manually_annotated
+
+                # get organism
+                organisms = []
+                organisms_sql = (sa.select([Organism.c.organism])
+                                 .select_from(Organism)
+                                 .where(Organism.c.pmcid == article['pmcid']))
+
+                async for row in connection.execute(organisms_sql):
+                    organisms.append(row.organism)
+
+                organisms_names = []
+                for organism in organisms:
+                    name_sql = (sa.select([Taxonomy.c.name])
+                                .select_from(Taxonomy)
+                                .where(Taxonomy.c.id == organism))
+
+                    async for row in connection.execute(name_sql):
+                        organisms_names.append(row.name)
+
+                article['organisms'] = organisms_names
 
             return articles
 
