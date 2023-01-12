@@ -65,6 +65,9 @@ async def create_xml_file(results):
             if 'manually_annotated' in item:
                 for urs in item['manually_annotated']:
                     ET.SubElement(additional_fields, "field", name="manually_annotated").text = urs
+            if 'organisms' in item:
+                for organism in item['organisms']:
+                    ET.SubElement(additional_fields, "field", name="organism").text = organism
 
     ET.SubElement(database, "entry_count").text = str(len(results))
 
@@ -84,12 +87,13 @@ async def search_index():
     :return: create xml file
     """
     # get credentials
-    user = os.getenv("username")
-    database = os.getenv("db")
-    host = os.getenv("host")
-    password = os.getenv("pass")
+    user = os.getenv("POSTGRES_USER")
+    password = os.getenv("POSTGRES_PASSWORD")
+    database = os.getenv("POSTGRES_DATABASE")
+    host = os.getenv("POSTGRES_HOST")
+    port = os.getenv("POSTGRES_PORT")
 
-    async with create_engine(user=user, database=database, host=host, password=password) as engine:
+    async with create_engine(user=user, database=database, host=host, password=password, port=port) as engine:
         # get articles
         articles = await get_articles(engine)
 
