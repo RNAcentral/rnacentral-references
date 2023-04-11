@@ -129,6 +129,7 @@ BodySentence = sa.Table(
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('result_id', sa.Integer, sa.ForeignKey('result.id')),
     sa.Column('sentence', sa.Text),
+    sa.Column('location', sa.Text),
 )
 
 """Job related to which DB"""
@@ -238,6 +239,7 @@ async def migrate(env):
                   id SERIAL PRIMARY KEY,
                   result_id INTEGER,
                   sentence TEXT,
+                  location TEXT,
                   FOREIGN KEY (result_id) REFERENCES result(id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
