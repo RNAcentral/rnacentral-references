@@ -116,6 +116,52 @@ async def articles_list(job_id, date, page="*"):
 
     return pmcid_list, next_page
 
+def get_text(sec):
+    """
+    Takes a given section's node in the XML tree and iterates over all paragraphs, joining the text together.
+
+    This implicitly removes any tags present, so if we need them we might have to do something more fancy
+    """
+    section_text = ""
+    for p in sec.findall('p'):
+        section_text += "".join(p.itertext())
+
+    return section_text
+
+
+def get_sections(tree, include_abstract=False):
+    """
+    Expects tree to be the root xml tree from ET.
+
+    This should be easier. The XPath way, using the attribute sec-type= should be able to get what I need
+    but it is totally inconsistent between articles. Hence this method gets the title in each section, then
+    string matches on it. 
+    """
+    sections = tree.findall("./body/sec")
+
+    section_map = {}
+    for sec in sections:
+        sec_title = sec.find("title").text
+        if re.match(".*intro.+", sec_title.lower()):
+            section_map['intro'] = sec
+        elif re.match(".*results", sec_title.lower()):
+            section_map['results'] = sec
+        elif re.match(".*discussion", sec_title.lower()):
+            section_map['discussion'] = sec
+        elif re.match(".*conclusion.*", sec_title.lower()):
+            section_map['conclusion'] = sec
+        elif re.match(".*method.+", sec_title.lower()):
+            section_map['method'] = sec
+        else:
+            section_map['other'] = sec
+
+    if include_abstract:
+        abstract = tree.find("./front/article-meta/abstract")
+        section_map['abstract'] = abstract
+
+    return section_map
+
+
 
 async def seek_references(engine, job_id, consumer_ip, date):
     """
@@ -266,18 +312,23 @@ async def seek_references(engine, job_id, consumer_ip, date):
                     "".join(item.itertext()) for item in get_body_tags if item.text and item.tag not in avoid_tags
                 ]
 
+                sections = get_sections(article)
                 # check if the body has the job_id
-                body_sentences = []
-                for item in get_body_tags:
+
+                body_sentences = {}
+                for section_name, section in sections.items():
+                # for item in get_body_tags:
+                    item = get_text(section)
+                    body_sentences[section_name] = []
                     for sentence in nltk.sent_tokenize(item):
                         if re.search(regex, sentence.lower()) and len(sentence.split()) > 3:
-                            body_sentences.append(sentence)
+                            body_sentences[section_name].append(sentence)
 
-                if abstract_sentences and not body_sentences:
+                if abstract_sentences and not all(body_sentences.values()):
                     result_response["id_in_body"] = False
-                elif not abstract_sentences and not body_sentences:
+                elif not abstract_sentences and not all(body_sentences.values()):
                     result_response["id_in_body"] = True
-                    body_sentences.append("%s found in an image, table or supplementary material" % job_id)
+                    body_sentences['other'] = ["%s found in an image, table or supplementary material" % job_id]
                 else:
                     result_response["id_in_body"] = True
 
@@ -365,9 +416,12 @@ async def seek_references(engine, job_id, consumer_ip, date):
                         await save_abstract_sentences(engine, abstract_sentences)
 
                     # save body sentences
-                    body_sentences = [{"result_id": result_id, "sentence": item} for item in body_sentences]
-                    if body_sentences:
-                        await save_body_sentences(engine, body_sentences)
+                    body_sentences_to_save = []
+                    for loc, sentences in body_sentences.items():
+                        for item in sentences:
+                            body_sentences_to_save.append({"result_id": result_id, "sentence": item, "location":loc})
+                    if body_sentences_to_save:
+                        await save_body_sentences(engine, body_sentences_to_save)
 
                 hit_count += 1
 
