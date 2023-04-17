@@ -141,18 +141,22 @@ def get_sections(tree, include_abstract=False):
 
     section_map = {}
     for sec in sections:
-        sec_title = sec.find("title").text
-        if re.match(".*intro.+", sec_title.lower()):
-            section_map['intro'] = sec
-        elif re.match(".*results", sec_title.lower()):
-            section_map['results'] = sec
-        elif re.match(".*discussion", sec_title.lower()):
-            section_map['discussion'] = sec
-        elif re.match(".*conclusion.*", sec_title.lower()):
-            section_map['conclusion'] = sec
-        elif re.match(".*method.+", sec_title.lower()):
-            section_map['method'] = sec
+        sec_title = sec.find("title")
+        if sec_title is not None:
+            if re.match(".*intro.+", sec_title.text.lower()):
+                section_map['intro'] = sec
+            elif re.match(".*results", sec_title.text.lower()):
+                section_map['results'] = sec
+            elif re.match(".*discussion", sec_title.text.lower()):
+                section_map['discussion'] = sec
+            elif re.match(".*conclusion.*", sec_title.text.lower()):
+                section_map['conclusion'] = sec
+            elif re.match(".*method.+", sec_title.text.lower()):
+                section_map['method'] = sec
+            else:
+                section_map['other'] = sec
         else:
+            # No title - don't know what it is, put it in other
             section_map['other'] = sec
 
     if include_abstract:
