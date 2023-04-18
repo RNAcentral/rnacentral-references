@@ -116,17 +116,41 @@ async def articles_list(job_id, date, page="*"):
 
     return pmcid_list, next_page
 
+
 def get_text(sec):
     """
     Takes a given section's node in the XML tree and iterates over all paragraphs, joining the text together.
 
     This implicitly removes any tags present, so if we need them we might have to do something more fancy
     """
-    section_text = ""
-    for p in sec.findall('p'):
-        section_text += "".join(p.itertext())
+    # common tags: 'title', 'p', 'italic', 'bold', 'sup', 'sub', 'underline', 'sc', 'named-content',
+    # 'list', 'list-item', 'uri', 'abbrev'
 
-    return section_text
+    # avoid text from the following tags as they result in bad sentences
+    avoid_tags = [
+        'xref', 'ext-link', 'media', 'caption', 'monospace', 'label', 'disp-formula', 'inline-formula',
+        'inline-graphic', 'def', 'def-list', 'def-item', 'term', 'funding-source', 'award-id', 'graphic',
+        'alternatives', 'tex-math', 'sec-meta', 'kwd-group', 'kwd', 'object-id',
+        '{http://www.w3.org/1998/Math/MathML}math', '{http://www.w3.org/1998/Math/MathML}mrow',
+        '{http://www.w3.org/1998/Math/MathML}mi', '{http://www.w3.org/1998/Math/MathML}mo',
+        '{http://www.w3.org/1998/Math/MathML}msub', '{http://www.w3.org/1998/Math/MathML}mn',
+        '{http://www.w3.org/1998/Math/MathML}msup', '{http://www.w3.org/1998/Math/MathML}mtext',
+        '{http://www.w3.org/1998/Math/MathML}msubsup', '{http://www.w3.org/1998/Math/MathML}mover',
+        '{http://www.w3.org/1998/Math/MathML}mstyle', '{http://www.w3.org/1998/Math/MathML}munderover',
+        '{http://www.w3.org/1998/Math/MathML}mspace', '{http://www.w3.org/1998/Math/MathML}mfenced',
+        '{http://www.w3.org/1998/Math/MathML}mpadded', '{http://www.w3.org/1998/Math/MathML}mfrac',
+        '{http://www.w3.org/1998/Math/MathML}msqrt'
+    ]
+
+    # get sentences
+    sec_sentences = [
+        "".join(item.itertext()) for item in sec if item.text and item.tag not in avoid_tags
+    ]
+
+    # remove multiple spaces
+    sec_sentences = [" ".join(item.split()) for item in sec_sentences]
+
+    return " ".join(sec_sentences) if sec_sentences else ""
 
 
 def get_sections(tree, include_abstract=False):
@@ -142,7 +166,7 @@ def get_sections(tree, include_abstract=False):
     section_map = {}
     for sec in sections:
         sec_title = sec.find("title")
-        if sec_title is not None:
+        try:
             if re.match(".*intro.+", sec_title.text.lower()):
                 section_map['intro'] = sec
             elif re.match(".*results", sec_title.text.lower()):
@@ -155,7 +179,7 @@ def get_sections(tree, include_abstract=False):
                 section_map['method'] = sec
             else:
                 section_map['other'] = sec
-        else:
+        except AttributeError:
             # No title - don't know what it is, put it in other
             section_map['other'] = sec
 
@@ -164,7 +188,6 @@ def get_sections(tree, include_abstract=False):
         section_map['abstract'] = abstract
 
     return section_map
-
 
 
 async def seek_references(engine, job_id, consumer_ip, date):
@@ -291,37 +314,10 @@ async def seek_references(engine, job_id, consumer_ip, date):
                         abstract_sentences.append(sentence)
                 result_response["id_in_abstract"] = True if abstract_sentences else False
 
-                # get body + all tags in it
-                get_body_tags = article.findall(".//body//*")
-
-                # common tags: 'sec', 'title', 'p', 'italic', 'bold', 'sup', 'sub', 'underline', 'sc', 'named-content',
-                # 'list', 'list-item', 'uri', 'abbrev'
-
-                # avoid text from the following tags as they result in bad sentences
-                avoid_tags = [
-                    'xref', 'ext-link', 'media', 'caption', 'monospace', 'label', 'disp-formula', 'inline-formula',
-                    'inline-graphic', 'def', 'def-list', 'def-item', 'term', 'funding-source', 'award-id', 'graphic',
-                    'alternatives', 'tex-math', 'sec-meta', 'kwd-group', 'kwd', 'object-id',
-                    '{http://www.w3.org/1998/Math/MathML}math', '{http://www.w3.org/1998/Math/MathML}mrow',
-                    '{http://www.w3.org/1998/Math/MathML}mi', '{http://www.w3.org/1998/Math/MathML}mo',
-                    '{http://www.w3.org/1998/Math/MathML}msub', '{http://www.w3.org/1998/Math/MathML}mn',
-                    '{http://www.w3.org/1998/Math/MathML}msup', '{http://www.w3.org/1998/Math/MathML}mtext',
-                    '{http://www.w3.org/1998/Math/MathML}msubsup', '{http://www.w3.org/1998/Math/MathML}mover',
-                    '{http://www.w3.org/1998/Math/MathML}mstyle', '{http://www.w3.org/1998/Math/MathML}munderover',
-                    '{http://www.w3.org/1998/Math/MathML}mspace', '{http://www.w3.org/1998/Math/MathML}mfenced',
-                    '{http://www.w3.org/1998/Math/MathML}mpadded', '{http://www.w3.org/1998/Math/MathML}mfrac',
-                    '{http://www.w3.org/1998/Math/MathML}msqrt'
-                ]
-                get_body_tags = [
-                    "".join(item.itertext()) for item in get_body_tags if item.text and item.tag not in avoid_tags
-                ]
-
-                sections = get_sections(article)
                 # check if the body has the job_id
-
+                sections = get_sections(article)
                 body_sentences = {}
                 for section_name, section in sections.items():
-                # for item in get_body_tags:
                     item = get_text(section)
                     body_sentences[section_name] = []
                     for sentence in nltk.sent_tokenize(item):
@@ -423,7 +419,7 @@ async def seek_references(engine, job_id, consumer_ip, date):
                     body_sentences_to_save = []
                     for loc, sentences in body_sentences.items():
                         for item in sentences:
-                            body_sentences_to_save.append({"result_id": result_id, "sentence": item, "location":loc})
+                            body_sentences_to_save.append({"result_id": result_id, "sentence": item, "location": loc})
                     if body_sentences_to_save:
                         await save_body_sentences(engine, body_sentences_to_save)
 
