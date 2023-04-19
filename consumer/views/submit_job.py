@@ -324,9 +324,9 @@ async def seek_references(engine, job_id, consumer_ip, date):
                         if re.search(regex, sentence.lower()) and len(sentence.split()) > 3:
                             body_sentences[section_name].append(sentence)
 
-                if abstract_sentences and not all(body_sentences.values()):
+                if abstract_sentences and not any(body_sentences.values()):
                     result_response["id_in_body"] = False
-                elif not abstract_sentences and not all(body_sentences.values()):
+                elif not abstract_sentences and not any(body_sentences.values()):
                     result_response["id_in_body"] = True
                     body_sentences['other'] = ["%s found in an image, table or supplementary material" % job_id]
                 else:
