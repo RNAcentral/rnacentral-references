@@ -143,12 +143,13 @@ def get_text(sec):
     ]
 
     # get sentences
+    # use iter method to iterate over all nodes bellow sec
     sec_sentences = [
-        "".join(item.itertext()) for item in sec if item.text and item.tag not in avoid_tags
+        "".join(item.itertext()) for item in sec.iter() if item.text and item.tag not in avoid_tags
     ]
 
-    # remove multiple spaces
-    sec_sentences = [" ".join(item.split()) for item in sec_sentences]
+    # remove multiple spaces and items with a single string
+    sec_sentences = [" ".join(item.split()) for item in sec_sentences if len(item.split()) > 1]
 
     return " ".join(sec_sentences) if sec_sentences else ""
 
