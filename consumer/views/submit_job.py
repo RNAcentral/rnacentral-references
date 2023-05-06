@@ -163,26 +163,32 @@ def get_sections(tree, include_abstract=False):
     string matches on it. 
     """
     sections = tree.findall("./body/sec")
-
     section_map = {}
+
+    # use a counter to prevent a section from being overwritten. This is mainly needed for the "other" section,
+    # but will also be used for the rest of the sections as it is not possible to predict how they are named
+    count = 0
+
     for sec in sections:
         sec_title = sec.find("title")
         try:
             if re.match(".*intro.+", sec_title.text.lower()):
-                section_map['intro'] = sec
+                section_map['intro' + str(count)] = sec
             elif re.match(".*results", sec_title.text.lower()):
-                section_map['results'] = sec
+                section_map['results' + str(count)] = sec
             elif re.match(".*discussion", sec_title.text.lower()):
-                section_map['discussion'] = sec
+                section_map['discussion' + str(count)] = sec
             elif re.match(".*conclusion.*", sec_title.text.lower()):
-                section_map['conclusion'] = sec
+                section_map['conclusion' + str(count)] = sec
             elif re.match(".*method.+", sec_title.text.lower()):
-                section_map['method'] = sec
+                section_map['method' + str(count)] = sec
             else:
-                section_map['other'] = sec
+                section_map['other' + str(count)] = sec
         except AttributeError:
             # No title - don't know what it is, put it in other
-            section_map['other'] = sec
+            section_map['other' + str(count)] = sec
+
+        count += 1
 
     if include_abstract:
         abstract = tree.find("./front/article-meta/abstract")
@@ -419,8 +425,24 @@ async def seek_references(engine, job_id, consumer_ip, date):
                     # save body sentences
                     body_sentences_to_save = []
                     for loc, sentences in body_sentences.items():
+                        # rename location (remove counter)
+                        if loc.startswith("intro"):
+                            location = "intro"
+                        elif loc.startswith("results"):
+                            location = "results"
+                        elif loc.startswith("discussion"):
+                            location = "discussion"
+                        elif loc.startswith("conclusion"):
+                            location = "conclusion"
+                        elif loc.startswith("method"):
+                            location = "method"
+                        else:
+                            location = "other"
+
                         for item in sentences:
-                            body_sentences_to_save.append({"result_id": result_id, "sentence": item, "location": loc})
+                            body_sentences_to_save.append(
+                                {"result_id": result_id, "sentence": item, "location": location}
+                            )
                     if body_sentences_to_save:
                         await save_body_sentences(engine, body_sentences_to_save)
 
