@@ -73,12 +73,12 @@
     shell: "sudo kill $(ps -ef | grep -v grep | grep -w 'python -m consumer' | awk '{print $2}')"
     register: running_processes
     ignore_errors: yes
-    tags: [ restart ]
+    tags: [ restart, stop ]
 
   - name: Kill running processes
     shell: "kill {{ item }}"
     with_items: "{{ running_processes.stdout_lines }}"
-    tags: [ restart ]
+    tags: [ restart, stop ]
 
   - wait_for:
       path: "/proc/{{ item }}/status"
@@ -86,19 +86,19 @@
     with_items: "{{ running_processes.stdout_lines }}"
     ignore_errors: yes
     register: killed_processes
-    tags: [ restart ]
+    tags: [ restart, stop ]
 
   - name: Force kill stuck processes
     shell: "kill -9 {{ item }}"
     with_items: "{{ killed_processes.results | select('failed') | map(attribute='item') | list }}"
-    tags: [ restart ]
+    tags: [ restart, stop ]
 
   - wait_for:
       path: "/proc/{{ item }}/status"
       state: absent
     with_items: "{{ running_processes.stdout_lines }}"
     ignore_errors: yes
-    tags: [ restart ]
+    tags: [ restart, stop ]
 
   - name: Run consumer service
     shell: |
@@ -106,4 +106,4 @@
       mkdir -p /var/log/reference
       cd /srv/reference
       ENVIRONMENT=PRODUCTION nohup python -m consumer &> /var/log/reference/access_log &
-    tags: [ restart ]
+    tags: [ restart, start ]
