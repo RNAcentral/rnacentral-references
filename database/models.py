@@ -200,6 +200,7 @@ async def migrate(env):
 
     async with engine:
         async with engine.acquire() as connection:
+            await connection.execute('DROP TABLE IF EXISTS litscan_load_organism')
             await connection.execute('DROP TABLE IF EXISTS litscan_organism')
             await connection.execute('DROP TABLE IF EXISTS litscan_body_sentence')
             await connection.execute('DROP TABLE IF EXISTS litscan_abstract_sentence')
