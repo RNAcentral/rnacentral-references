@@ -79,6 +79,7 @@ Job = sa.Table(
     metadata,
     sa.Column('job_id', sa.String(100), primary_key=True),
     sa.Column('display_id', sa.String(100)),
+    sa.Column('query', sa.Text, nullable=True),
     sa.Column('status', sa.String(10)),  # choices=JOB_STATUS_CHOICES
     sa.Column('submitted', sa.DateTime),
     sa.Column('finished', sa.DateTime, nullable=True),
@@ -223,6 +224,7 @@ async def migrate(env):
                 CREATE TABLE litscan_job (
                   job_id VARCHAR(100) PRIMARY KEY,
                   display_id VARCHAR(100),
+                  query TEXT,
                   submitted TIMESTAMP,
                   finished TIMESTAMP,
                   status VARCHAR(10),
