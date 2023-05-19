@@ -37,7 +37,7 @@ Where:
 It is possible to change the query used to filter out possible false positives.
 To do so, use the `query` parameter when submitting a job
 ```
-curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\", \"query\": \"("foo" AND "bar")\"}" localhost:8080/api/submit-job
+curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\", \"query\": \"('foo' AND 'bar')\"}" localhost:8080/api/submit-job
 ```
 
 You can check the results by accessing the URL
