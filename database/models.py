@@ -26,13 +26,14 @@ async def init_pg(app):
     logger.debug("POSTGRES_USER = %s" % app['settings'].POSTGRES_USER)
     logger.debug("POSTGRES_DATABASE = %s" % app['settings'].POSTGRES_DATABASE)
     logger.debug("POSTGRES_HOST = %s" % app['settings'].POSTGRES_HOST)
-    logger.debug("POSTGRES_PASSWORD = %s" % app['settings'].POSTGRES_PASSWORD)
+    logger.debug("POSTGRES_PORT = %s" % app['settings'].POSTGRES_PORT)
 
     app['engine'] = await create_engine(
         user=app['settings'].POSTGRES_USER,
+        password=app['settings'].POSTGRES_PASSWORD,
         database=app['settings'].POSTGRES_DATABASE,
         host=app['settings'].POSTGRES_HOST,
-        password=app['settings'].POSTGRES_PASSWORD
+        port=app['settings'].POSTGRES_PORT
     )
 
 
@@ -64,7 +65,7 @@ metadata = sa.MetaData()
 
 """State of a consumer instance"""
 Consumer = sa.Table(
-    'consumer',
+    'litscan_consumer',
     metadata,
     sa.Column('ip', sa.String(20), primary_key=True),
     sa.Column('status', sa.String(10)),  # choices=CONSUMER_STATUS_CHOICES, default='available'
@@ -74,7 +75,7 @@ Consumer = sa.Table(
 
 """Metadata of a search job"""
 Job = sa.Table(
-    'job',
+    'litscan_job',
     metadata,
     sa.Column('job_id', sa.String(100), primary_key=True),
     sa.Column('display_id', sa.String(100)),
@@ -86,7 +87,7 @@ Job = sa.Table(
 
 """Info about a specific article"""
 Article = sa.Table(
-    'article',
+    'litscan_article',
     metadata,
     sa.Column('pmcid', sa.String(15), primary_key=True),
     sa.Column('title', sa.Text),
@@ -101,9 +102,18 @@ Article = sa.Table(
     sa.Column('retracted', sa.Boolean),
 )
 
+"""Organisms identified in the article"""
+Organism = sa.Table(
+    'litscan_organism',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('pmcid', sa.String(15), sa.ForeignKey('article.pmcid')),
+    sa.Column('organism', sa.Integer),
+)
+
 """Result of a specific Job"""
 Result = sa.Table(
-    'result',
+    'litscan_result',
     metadata,
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('pmcid', sa.String(15), sa.ForeignKey('article.pmcid')),
@@ -115,7 +125,7 @@ Result = sa.Table(
 
 """Sentences extracted from the abstract"""
 AbstractSentence = sa.Table(
-    'abstract_sentence',
+    'litscan_abstract_sentence',
     metadata,
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('result_id', sa.Integer, sa.ForeignKey('result.id')),
@@ -124,16 +134,17 @@ AbstractSentence = sa.Table(
 
 """Sentences extracted from the body"""
 BodySentence = sa.Table(
-    'body_sentence',
+    'litscan_body_sentence',
     metadata,
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('result_id', sa.Integer, sa.ForeignKey('result.id')),
     sa.Column('sentence', sa.Text),
+    sa.Column('location', sa.Text),
 )
 
 """Job related to which DB"""
 Database = sa.Table(
-    'database',
+    'litscan_database',
     metadata,
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('name', sa.String(50)),
@@ -143,12 +154,30 @@ Database = sa.Table(
 
 """Manually annotated articles"""
 ManuallyAnnotated = sa.Table(
-    'manually_annotated',
+    'litscan_manually_annotated',
     metadata,
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('pmcid', sa.String(15), sa.ForeignKey('article.pmcid')),
     sa.Column('urs', sa.String(100), sa.ForeignKey('job.job_id')),
 )
+
+"""Taxonomy-based retrieval of documents"""
+LoadOrganism = sa.Table(
+    'litscan_load_organism',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('pmid', sa.String(100)),
+    sa.Column('organism', sa.Integer),
+)
+
+"""Get taxonomy name"""
+Taxonomy = sa.Table(
+    'rnc_taxonomy',
+    metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('name', sa.String(255)),
+)
+
 
 # Migrations
 # ----------
@@ -163,24 +192,27 @@ async def migrate(env):
 
     engine = await create_engine(
         user=settings.POSTGRES_USER,
+        password=settings.POSTGRES_PASSWORD,
         database=settings.POSTGRES_DATABASE,
         host=settings.POSTGRES_HOST,
-        password=settings.POSTGRES_PASSWORD
+        port=settings.POSTGRES_PORT
     )
 
     async with engine:
         async with engine.acquire() as connection:
-            await connection.execute('DROP TABLE IF EXISTS body_sentence')
-            await connection.execute('DROP TABLE IF EXISTS abstract_sentence')
-            await connection.execute('DROP TABLE IF EXISTS manually_annotated')
-            await connection.execute('DROP TABLE IF EXISTS result')
-            await connection.execute('DROP TABLE IF EXISTS article')
-            await connection.execute('DROP TABLE IF EXISTS database')
-            await connection.execute('DROP TABLE IF EXISTS job')
-            await connection.execute('DROP TABLE IF EXISTS consumer')
+            await connection.execute('DROP TABLE IF EXISTS litscan_load_organism')
+            await connection.execute('DROP TABLE IF EXISTS litscan_organism')
+            await connection.execute('DROP TABLE IF EXISTS litscan_body_sentence')
+            await connection.execute('DROP TABLE IF EXISTS litscan_abstract_sentence')
+            await connection.execute('DROP TABLE IF EXISTS litscan_manually_annotated')
+            await connection.execute('DROP TABLE IF EXISTS litscan_result')
+            await connection.execute('DROP TABLE IF EXISTS litscan_article')
+            await connection.execute('DROP TABLE IF EXISTS litscan_database')
+            await connection.execute('DROP TABLE IF EXISTS litscan_job')
+            await connection.execute('DROP TABLE IF EXISTS litscan_consumer')
 
             await connection.execute('''
-                CREATE TABLE consumer (
+                CREATE TABLE litscan_consumer (
                   ip VARCHAR(20) PRIMARY KEY,
                   status VARCHAR(10) NOT NULL,
                   job_id VARCHAR(100),
@@ -188,7 +220,7 @@ async def migrate(env):
             ''')
 
             await connection.execute('''
-                CREATE TABLE job (
+                CREATE TABLE litscan_job (
                   job_id VARCHAR(100) PRIMARY KEY,
                   display_id VARCHAR(100),
                   submitted TIMESTAMP,
@@ -198,7 +230,7 @@ async def migrate(env):
             ''')
 
             await connection.execute('''
-                CREATE TABLE article (
+                CREATE TABLE litscan_article (
                   pmcid VARCHAR(15) PRIMARY KEY,
                   title TEXT,
                   abstract TEXT,
@@ -213,56 +245,75 @@ async def migrate(env):
             ''')
 
             await connection.execute('''
-                CREATE TABLE result (
+                CREATE TABLE litscan_organism (
+                  id SERIAL PRIMARY KEY,
+                  pmcid VARCHAR(15),
+                  organism INTEGER,
+                  FOREIGN KEY (pmcid) REFERENCES litscan_article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
+                  CONSTRAINT pmcid_organism UNIQUE (pmcid, organism))
+            ''')
+
+            await connection.execute('''
+                CREATE TABLE litscan_result (
                   id SERIAL PRIMARY KEY,
                   pmcid VARCHAR(15),
                   job_id VARCHAR(100),
                   id_in_title BOOLEAN,
                   id_in_abstract BOOLEAN,
                   id_in_body BOOLEAN,
-                  FOREIGN KEY (pmcid) REFERENCES article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
-                  FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
+                  FOREIGN KEY (pmcid) REFERENCES litscan_article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
+                  FOREIGN KEY (job_id) REFERENCES litscan_job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
                   CONSTRAINT pmcid_job_id UNIQUE (pmcid, job_id))
             ''')
 
             await connection.execute('''
-                CREATE TABLE abstract_sentence (
+                CREATE TABLE litscan_abstract_sentence (
                   id SERIAL PRIMARY KEY,
                   result_id INTEGER,
                   sentence TEXT,
-                  FOREIGN KEY (result_id) REFERENCES result(id) ON UPDATE CASCADE ON DELETE CASCADE)
+                  FOREIGN KEY (result_id) REFERENCES litscan_result(id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
             await connection.execute('''
-                CREATE TABLE body_sentence (
+                CREATE TABLE litscan_body_sentence (
                   id SERIAL PRIMARY KEY,
                   result_id INTEGER,
                   sentence TEXT,
-                  FOREIGN KEY (result_id) REFERENCES result(id) ON UPDATE CASCADE ON DELETE CASCADE)
+                  location TEXT,
+                  FOREIGN KEY (result_id) REFERENCES litscan_result(id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
             await connection.execute('''
-                CREATE TABLE database (
+                CREATE TABLE litscan_database (
                   id SERIAL PRIMARY KEY,
                   name VARCHAR(50),
                   job_id VARCHAR(100),
                   primary_id VARCHAR(100),
-                  FOREIGN KEY (job_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
-                  FOREIGN KEY (primary_id) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
+                  FOREIGN KEY (job_id) REFERENCES litscan_job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
+                  FOREIGN KEY (primary_id) REFERENCES litscan_job(job_id) ON UPDATE CASCADE ON DELETE CASCADE,
                   CONSTRAINT name_job UNIQUE (name, job_id, primary_id))
             ''')
 
             await connection.execute('''
-                CREATE TABLE manually_annotated (
+                CREATE TABLE litscan_manually_annotated (
                   id SERIAL PRIMARY KEY,
                   pmcid VARCHAR(15),
                   urs VARCHAR(100),
-                  FOREIGN KEY (pmcid) REFERENCES article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
-                  FOREIGN KEY (urs) REFERENCES job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
+                  FOREIGN KEY (pmcid) REFERENCES litscan_article(pmcid) ON UPDATE CASCADE ON DELETE CASCADE,
+                  FOREIGN KEY (urs) REFERENCES litscan_job(job_id) ON UPDATE CASCADE ON DELETE CASCADE)
             ''')
 
-            await connection.execute('''CREATE INDEX on result (job_id)''')
-            await connection.execute('''CREATE INDEX on database (job_id)''')
-            await connection.execute('''CREATE INDEX on manually_annotated (urs)''')
-            await connection.execute('''CREATE INDEX on abstract_sentence (result_id)''')
-            await connection.execute('''CREATE INDEX on body_sentence (result_id)''')
+            await connection.execute('''
+                CREATE TABLE litscan_load_organism (
+                  id SERIAL PRIMARY KEY,
+                  pmid VARCHAR(100),
+                  organism INTEGER,
+                  CONSTRAINT pmid_organism UNIQUE (pmid, organism))
+            ''')
+
+            await connection.execute('''CREATE INDEX ON litscan_article (pmcid) WHERE retracted IS FALSE''')
+            await connection.execute('''CREATE INDEX ON litscan_result (job_id)''')
+            await connection.execute('''CREATE INDEX ON litscan_database (job_id)''')
+            await connection.execute('''CREATE INDEX ON litscan_manually_annotated (urs)''')
+            await connection.execute('''CREATE INDEX ON litscan_abstract_sentence (result_id)''')
+            await connection.execute('''CREATE INDEX ON litscan_body_sentence (result_id)''')

@@ -51,9 +51,9 @@ class JobResultsTestCase(AioHTTPTestCase):
 
     async def tearDownAsync(self):
         async with self.app['engine'].acquire() as connection:
-            await connection.execute('DELETE FROM result')
-            await connection.execute('DELETE FROM article')
-            await connection.execute('DELETE FROM job')
+            await connection.execute('DELETE FROM litscan_result')
+            await connection.execute('DELETE FROM litscan_article')
+            await connection.execute('DELETE FROM litscan_job')
 
         await super().tearDownAsync()
 

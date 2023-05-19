@@ -13,7 +13,10 @@ limitations under the License.
 
 import os
 
+from dotenv import load_dotenv
 from .models import migrate
+
+load_dotenv()
 
 
 if __name__ == "__main__":

@@ -39,10 +39,10 @@ def get_postgres_credentials(ENVIRONMENT):
         )
     elif ENVIRONMENT == 'PRODUCTION':
         return Settings(
-            POSTGRES_HOST='192.168.0.6',
-            POSTGRES_PORT=5432,
-            POSTGRES_DATABASE='reference',
-            POSTGRES_USER='docker',
+            POSTGRES_HOST=os.getenv('POSTGRES_HOST', '192.168.0.6'),
+            POSTGRES_PORT=os.getenv('POSTGRES_PORT', 5432),
+            POSTGRES_DATABASE=os.getenv('POSTGRES_DATABASE', 'reference'),
+            POSTGRES_USER=os.getenv('POSTGRES_USER', 'docker'),
             POSTGRES_PASSWORD=os.getenv('POSTGRES_PASSWORD', 'pass'),
             ENVIRONMENT=ENVIRONMENT
         )

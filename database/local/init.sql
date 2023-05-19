@@ -4,3 +4,4 @@ GRANT ALL PRIVILEGES ON DATABASE reference TO docker;
 ALTER ROLE docker CREATEDB;
 CREATE DATABASE test_reference;
 GRANT ALL PRIVILEGES ON DATABASE test_reference TO docker;
+GRANT ALL ON schema public TO docker;

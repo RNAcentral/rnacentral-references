@@ -15,7 +15,7 @@ import psycopg2
 import sqlalchemy as sa
 
 from database import DatabaseConnectionError, SQLError
-from database.models import Article, Result, AbstractSentence, BodySentence, Job, ManuallyAnnotated
+from database.models import Article, Result, AbstractSentence, BodySentence, Job, ManuallyAnnotated, Organism, Taxonomy
 
 
 async def save_article(engine, result):
@@ -249,7 +249,7 @@ async def get_articles(engine):
 
                     # get abstract sentence
                     abstract_sql = sa.text(
-                        '''SELECT sentence FROM abstract_sentence 
+                        '''SELECT sentence FROM litscan_abstract_sentence 
                         WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
                     )
                     async for row in connection.execute(abstract_sql, result_id=result['id']):
@@ -257,7 +257,7 @@ async def get_articles(engine):
 
                     # get body sentence
                     body_sql = sa.text(
-                        '''SELECT sentence FROM body_sentence 
+                        '''SELECT sentence FROM litscan_body_sentence 
                         WHERE result_id=:result_id ORDER BY length(sentence) DESC LIMIT 1'''
                     )
                     async for row in connection.execute(body_sql, result_id=result['id']):
@@ -275,6 +275,26 @@ async def get_articles(engine):
                     manually_annotated.append(row.urs.upper())
 
                 article['manually_annotated'] = manually_annotated
+
+                # get organism
+                organisms = []
+                organisms_sql = (sa.select([Organism.c.organism])
+                                 .select_from(Organism)
+                                 .where(Organism.c.pmcid == article['pmcid']))
+
+                async for row in connection.execute(organisms_sql):
+                    organisms.append(row.organism)
+
+                organisms_names = []
+                for organism in organisms:
+                    name_sql = (sa.select([Taxonomy.c.name])
+                                .select_from(Taxonomy)
+                                .where(Taxonomy.c.id == organism))
+
+                    async for row in connection.execute(name_sql):
+                        organisms_names.append(row.name)
+
+                article['organisms'] = organisms_names
 
             return articles
 
@@ -310,9 +330,26 @@ async def retracted_article(engine, pmcid):
     try:
         async with engine.acquire() as connection:
             try:
-                query = sa.text('''UPDATE article SET retracted=:retracted WHERE pmcid=:pmcid''')
+                query = sa.text('''UPDATE litscan_article SET retracted=:retracted WHERE pmcid=:pmcid''')
                 await connection.execute(query, retracted=True, pmcid=pmcid)
             except Exception as e:
                 logging.debug("Failed to retracted_article. Error: {}.".format(e))
     except psycopg2.Error as e:
         raise DatabaseConnectionError(str(e)) from e
+
+
+async def get_all_pmid(engine):
+    """
+    Function to get articles that contain pmid
+    :param engine: params to connect to the db
+    :return: list of dicts containing articles
+    """
+    query = (sa.select([Article.c.pmcid, Article.c.pmid]).select_from(Article).where(Article.c.pmid != None))  # noqa
+    pmid_list = []
+    try:
+        async with engine.acquire() as connection:
+            async for row in connection.execute(query):
+                pmid_list.append({"pmcid": row.pmcid, "pmid": row.pmid})
+            return pmid_list
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_pmid()") from e

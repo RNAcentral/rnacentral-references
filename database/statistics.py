@@ -28,8 +28,8 @@ async def get_urs_count(engine):
                 result = []
                 query = sa.text('''
                     SELECT UPPER(d.primary_id) as urs, SUM(j.hit_count) as total
-                    FROM job j 
-                    JOIN database d 
+                    FROM litscan_job j 
+                    JOIN litscan_database d 
                     ON d.job_id=j.job_id 
                     WHERE j.hit_count>0 AND d.name='rnacentral' 
                     GROUP BY d.primary_id;

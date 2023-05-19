@@ -57,7 +57,7 @@ async def search_performed(engine, value):
     try:
         async with engine.acquire() as connection:
             try:
-                sql_query = sa.text('''SELECT job_id FROM job WHERE job_id=:value''')
+                sql_query = sa.text('''SELECT job_id FROM litscan_job WHERE job_id=:value''')
                 async for row in connection.execute(sql_query, value=value.lower()):
                     return {"job_id": row.job_id}
             except Exception as e:
@@ -108,7 +108,7 @@ async def set_job_status(engine, job_id, status):
             try:
                 if finished:
                     query = sa.text('''
-                        UPDATE job
+                        UPDATE litscan_job
                         SET status=:status, finished=:finished
                         WHERE job_id=:job_id
                         RETURNING *;
@@ -120,7 +120,7 @@ async def set_job_status(engine, job_id, status):
                     return job
                 else:
                     query = sa.text('''
-                        UPDATE job
+                        UPDATE litscan_job
                         SET status=:status
                         WHERE job_id=:job_id
                         RETURNING *;
@@ -147,7 +147,7 @@ async def save_hit_count(engine, job_id, hit_count):
     try:
         async with engine.acquire() as connection:
             try:
-                query = sa.text('''UPDATE job SET hit_count=:hit_count WHERE job_id=:job_id''')
+                query = sa.text('''UPDATE litscan_job SET hit_count=:hit_count WHERE job_id=:job_id''')
                 await connection.execute(query, job_id=job_id, hit_count=hit_count)
             except Exception as e:
                 raise SQLError("Failed to save_hit_count, job_id = %s and hit_count = %s" % (job_id, hit_count)) from e
