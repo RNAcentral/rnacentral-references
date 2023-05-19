@@ -66,7 +66,6 @@ class JobResultsTestCase(AioHTTPTestCase):
                 'job_id': self.job_id,
                 'pmcid': self.pmcid,
                 'title': None,
-                'abstract': None,
                 'author': None,
                 'pmid': None,
                 'doi': None,
@@ -78,6 +77,8 @@ class JobResultsTestCase(AioHTTPTestCase):
                 'id_in_title': None,
                 'id_in_abstract': None,
                 'id_in_body': None,
+                'abstract_sentence': [],
+                'body_sentence': []
             }]
 
     @unittest_run_loop
