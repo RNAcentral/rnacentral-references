@@ -14,8 +14,8 @@ import sqlalchemy as sa
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Article, Job, JOB_STATUS_CHOICES, Result, AbstractSentence, BodySentence
-from database.results import get_pmcid, get_pmcid_in_result, get_pmid, save_article, save_result, \
-    save_abstract_sentences, save_body_sentences, get_articles, retracted_article, get_all_pmcid, get_all_pmid
+from database.results import get_pmcid, get_pmcid_in_result, save_article, save_result, save_abstract_sentences, \
+    save_body_sentences
 from database.tests.test_base import DBTestCase
 
 
@@ -110,35 +110,3 @@ class ResultsTestCase(DBTestCase):
                 result.append(row.sentence)
 
             assert self.job_id in result[0]
-
-    @unittest_run_loop
-    async def test_get_pmid(self):
-        result = await get_pmid(self.app['engine'], self.pmid)
-        assert self.pmcid == result
-
-    @unittest_run_loop
-    async def test_get_articles(self):
-        result = await get_articles(self.app['engine'])
-        assert ('pmcid', '123456780') in result[0].items()
-
-    @unittest_run_loop
-    async def test_get_all_pmcid(self):
-        result = await get_all_pmcid(self.app['engine'])
-        assert self.pmcid in result
-
-    @unittest_run_loop
-    async def test_retracted_article(self):
-        await retracted_article(self.app['engine'], self.pmcid)
-
-        async with self.app['engine'].acquire() as connection:
-            # get retracted field
-            query = (sa.select([Article.c.retracted]).select_from(Article).where(Article.c.pmcid == self.pmcid))
-            async for row in connection.execute(query):
-                result = row.retracted
-
-            assert result is True
-
-    @unittest_run_loop
-    async def test_get_all_pmid(self):
-        result = await get_all_pmid(self.app['engine'])
-        assert {"pmcid": self.pmcid, "pmid": self.pmid} in result
