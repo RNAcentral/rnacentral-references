@@ -22,7 +22,7 @@ from aiojobs.aiohttp import spawn
 
 from consumer.settings import EUROPE_PMC
 from database.consumers import get_ip, set_consumer_status_and_job_id
-from database.job import get_hit_count, get_search_date, save_hit_count, set_job_status
+from database.job import get_hit_count, get_search_date, save_hit_count, set_job_status, get_query
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
 from database.results import get_pmcid, get_pmcid_in_result, save_article, save_result, save_abstract_sentences, \
     save_body_sentences
@@ -69,7 +69,7 @@ async def submit_job(request):
     return web.HTTPCreated()
 
 
-async def articles_list(job_id, date, page="*"):
+async def articles_list(job_id, query_filter, date, page="*"):
     """
     Function to create a list of "PMCIDs" that have job_id in their content
     :param job_id: id of the job
@@ -78,8 +78,9 @@ async def articles_list(job_id, date, page="*"):
     :return: list of "PMCIDs" and the next page, if any
     """
     search_date = f' AND (FIRST_PDATE:[{date} TO {datetime.date.today().strftime("%Y-%m-%d")}])' if date else ''
-    query = f'search?query=("{job_id}" AND ("rna" OR "mrna" OR "ncrna" OR "lncrna" OR "rrna" OR "sncrna") ' \
-            f'AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR{search_date})&pageSize=500&cursorMark={page}'
+    query_filter = f' AND {query_filter}' if query_filter else ''
+    query = f'search?query=("{job_id}"{query_filter} AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR{search_date})' \
+            f'&pageSize=500&cursorMark={page}'
 
     # fetch articles
     try:
@@ -215,14 +216,15 @@ async def seek_references(engine, job_id, consumer_ip, date):
     regex = r"(^|\s|\()" + re.escape(job_id.lower()) + "($|[\s.,;?)])"
     pmcid_list = []
     hit_count = 0
+    query_filter = await get_query(engine, job_id.lower())
 
-    temp_pmcid_list, next_page = await articles_list(job_id, date)
+    temp_pmcid_list, next_page = await articles_list(job_id, query_filter, date)
     for item in temp_pmcid_list:
         if item not in pmcid_list:
             pmcid_list.append(item)
 
     while next_page:
-        temp_pmcid_list, next_page = await articles_list(job_id, date, next_page)
+        temp_pmcid_list, next_page = await articles_list(job_id, query_filter, date, next_page)
         for item in temp_pmcid_list:
             if item not in pmcid_list:
                 pmcid_list.append(item)

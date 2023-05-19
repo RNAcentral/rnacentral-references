@@ -37,7 +37,9 @@ async def submit_job(request):
         # get job_id
         job_id = job['job_id']
     else:
+        query = data['query'] if "query" in data else '("rna" OR "mrna" OR "ncrna" OR "lncrna" OR "rrna" OR "sncrna")'
+
         # save metadata about this job
-        job_id = await save_job(request.app['engine'], data['id'])
+        job_id = await save_job(request.app['engine'], data['id'], query)
 
     return web.json_response({"job_id": job_id}, status=201)

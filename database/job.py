@@ -66,11 +66,12 @@ async def search_performed(engine, value):
         raise DatabaseConnectionError("Failed to open DB connection in search_performed() for id = %s" % value) from e
 
 
-async def save_job(engine, job_id):
+async def save_job(engine, job_id, query):
     """
     Save metadata in the database
     :param engine: params to connect to the db
     :param job_id: the string that will be searched
+    :param query: query used to filter results
     :return: job_id
     """
     try:
@@ -82,6 +83,7 @@ async def save_job(engine, job_id):
                         display_id=job_id,
                         submitted=datetime.datetime.now(),
                         status=JOB_STATUS_CHOICES.pending,
+                        query=query
                     )
                 )
                 return job_id
@@ -214,3 +216,23 @@ async def get_hit_count(engine, job_id):
                 raise SQLError("Failed to get hit_count") from e
     except psycopg2.Error as e:
         raise DatabaseConnectionError("Failed to open DB connection in get_hit_count()") from e
+
+
+async def get_query(engine, job_id):
+    """
+    Function to get query
+    :param engine: params to connect to the db
+    :param job_id: id of the job
+    :return: query
+    """
+    try:
+        async with engine.acquire() as connection:
+            sql_query = (sa.select([Job.c.query]).select_from(Job).where(Job.c.job_id == job_id))
+            try:
+                async for row in connection.execute(sql_query):
+                    query = row.query
+                return query
+            except Exception as e:
+                raise SQLError("Failed to get query") from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in get_query()") from e
