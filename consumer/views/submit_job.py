@@ -213,7 +213,7 @@ async def seek_references(engine, job_id, consumer_ip, date):
     :return: save the results in the database and make the consumer available for a new search
     """
     start = datetime.datetime.now()
-    regex = r"(^|\s|\()" + re.escape(job_id.lower()) + "($|[\s.,;?)])"
+    regex = r"(^|\s|\(|\“|\'|\"|\;)" + re.escape(job_id.lower()) + "($|[\s.,:;?'”\"/)])"
     pmcid_list = []
     hit_count = 0
     query_filter = await get_query(engine, job_id.lower())
