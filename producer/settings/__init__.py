@@ -37,6 +37,8 @@ PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'LOCAL')
 if ENVIRONMENT == "LOCAL":
     from .local import *
+elif ENVIRONMENT == "DOCKER":
+    from .docker import *
 elif ENVIRONMENT == "TEST":
     from .test import *
 elif ENVIRONMENT == "PRODUCTION":

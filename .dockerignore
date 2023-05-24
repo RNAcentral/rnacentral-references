@@ -1,0 +1,6 @@
+.gitignore
+ansible
+get_ids
+scripts
+venv
+words_identified_by_corpus.txt
