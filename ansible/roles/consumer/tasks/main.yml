@@ -53,12 +53,11 @@
       virtualenv_command: /usr/local/bin/python3.9 -m venv
     tags: [ pip ]
 
-  #TODO: debug this step. It compiles, but it doesn't actually download punkt
-  #- name: Use the NLTK Downloader to obtain punkt
-  #  shell: |
-  #    source /srv/reference/venv/bin/activate
-  #    python -c "import nltk; nltk.download('punkt')"
-  #  tags: [ pip ]
+  - name: Use the NLTK Downloader to obtain punkt
+    shell: |
+      source /srv/reference/venv/bin/activate
+      python -c "import nltk; nltk.download('punkt', download_dir='/srv/reference/venv/nltk_data/')"
+    tags: [ pip ]
 
   - name: Chown reference code
     command: "chown -R centos:centos /srv/reference"
