@@ -64,6 +64,11 @@ Or if you don't want to use any queries, run
 curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\", \"query\": \"\"}" localhost:8080/api/submit-job
 ```
 
+Use the `search_limit` parameter if you want to set a maximum number of articles to search when testing this tool
+```
+curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\", \"search_limit\": 10}" localhost:8080/api/submit-job
+```
+
 You can check the results by accessing the URL
 ```
 http://localhost:8080/api/results/rf00001

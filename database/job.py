@@ -66,12 +66,13 @@ async def search_performed(engine, value):
         raise DatabaseConnectionError("Failed to open DB connection in search_performed() for id = %s" % value) from e
 
 
-async def save_job(engine, job_id, query):
+async def save_job(engine, job_id, query, search_limit):
     """
     Save metadata in the database
     :param engine: params to connect to the db
     :param job_id: the string that will be searched
     :param query: query used to filter results
+    :param search_limit: number of articles to fetch
     :return: job_id
     """
     try:
@@ -83,7 +84,8 @@ async def save_job(engine, job_id, query):
                         display_id=job_id,
                         submitted=datetime.datetime.now(),
                         status=JOB_STATUS_CHOICES.pending,
-                        query=query
+                        query=query,
+                        search_limit=search_limit
                     )
                 )
                 return job_id
@@ -218,20 +220,21 @@ async def get_hit_count(engine, job_id):
         raise DatabaseConnectionError("Failed to open DB connection in get_hit_count()") from e
 
 
-async def get_query(engine, job_id):
+async def get_query_and_limit(engine, job_id):
     """
-    Function to get query
+    Function to get query and search_limit
     :param engine: params to connect to the db
     :param job_id: id of the job
-    :return: query
+    :return: query and search_limit
     """
     try:
         async with engine.acquire() as connection:
-            sql_query = (sa.select([Job.c.query]).select_from(Job).where(Job.c.job_id == job_id))
+            sql_query = (sa.select([Job.c.query, Job.c.search_limit]).select_from(Job).where(Job.c.job_id == job_id))
             try:
                 async for row in connection.execute(sql_query):
                     query = row.query
-                return query
+                    search_limit = row.search_limit
+                return query, search_limit
             except Exception as e:
                 raise SQLError("Failed to get query") from e
     except psycopg2.Error as e:

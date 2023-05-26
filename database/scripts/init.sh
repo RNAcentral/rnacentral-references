@@ -88,6 +88,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
           job_id character varying(100) NOT NULL,
           display_id character varying(100),
           query text,
+          search_limit integer,
           submitted timestamp without time zone,
           finished timestamp without time zone,
           status character varying(10),
