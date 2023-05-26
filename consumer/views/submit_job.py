@@ -332,10 +332,25 @@ async def seek_references(engine, job_id, consumer_ip, date):
                 body_sentences = {}
                 for section_name, section in sections.items():
                     item = get_text(section)
+                    tokenized_text = nltk.sent_tokenize(item)
                     body_sentences[section_name] = []
-                    for sentence in nltk.sent_tokenize(item):
+
+                    for index, sentence in enumerate(tokenized_text):
                         if re.search(regex, sentence.lower()) and len(sentence.split()) > 3:
-                            body_sentences[section_name].append(sentence)
+                            # try to get the previous and next sentence
+                            prev_sentence = tokenized_text[index - 1] if index > 0 else None
+                            next_sentence = tokenized_text[index + 1] if index < len(tokenized_text) - 1 else None
+
+                            if prev_sentence and next_sentence:
+                                body_sentences[section_name].append(
+                                    prev_sentence + " " + sentence + " " + next_sentence
+                                )
+                            elif prev_sentence:
+                                body_sentences[section_name].append(prev_sentence + " " + sentence)
+                            elif next_sentence:
+                                body_sentences[section_name].append(sentence + " " + next_sentence)
+                            else:
+                                body_sentences[section_name].append(sentence)
 
                 if abstract_sentences and not any(body_sentences.values()):
                     result_response["id_in_body"] = False
