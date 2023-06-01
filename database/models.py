@@ -102,6 +102,7 @@ Article = sa.Table(
     sa.Column('score', sa.Integer()),
     sa.Column('cited_by', sa.Integer()),
     sa.Column('retracted', sa.Boolean),
+    sa.Column('type', sa.String(100)),
 )
 
 """Organisms identified in the article"""
@@ -245,7 +246,8 @@ async def migrate(env):
                   journal VARCHAR(255),
                   score INTEGER,
                   cited_by INTEGER,
-                  retracted BOOLEAN)
+                  retracted BOOLEAN,
+                  type VARCHAR(100))
             ''')
 
             await connection.execute('''
