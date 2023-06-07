@@ -47,6 +47,9 @@ async def register_consumer_in_the_database(app):
     """
     try:
         async with app['engine'].acquire() as connection:
+            if app['settings'].ENVIRONMENT == 'DOCKER':
+                await connection.execute(sa.text('''TRUNCATE TABLE litscan_consumer'''))
+
             sql_query = sa.text('''
                 INSERT INTO litscan_consumer(ip, status, port)
                 VALUES (:consumer_ip, :status, :port)
