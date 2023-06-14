@@ -370,7 +370,7 @@ async def seek_references(engine, job_id, consumer_ip, date):
                 if not article_in_db:
                     # get article type
                     if "article-type" in article.attrib:
-                        article_type = article.attrib["article-type"]
+                        article_type = article.attrib["article-type"].strip()
                         article_response["type"] = article_type.replace("-", " ").capitalize()
                     else:
                         article_response["type"] = ""
