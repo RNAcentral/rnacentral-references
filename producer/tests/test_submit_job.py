@@ -49,4 +49,18 @@ class SubmitJobTestCase(AioHTTPTestCase):
         async with self.client.post(path='/api/submit-job', data=data) as response:
             assert response.status == 400
             text = await response.text()
-            assert text == '{"id": "Not found"}'
+            assert text == '{"Error": "Id not found"}'
+
+    @unittest_run_loop
+    async def test_submit_rescan_fail(self):
+        data = json.dumps({"id": "FOOBAR", "rescan": "yes"})
+        async with self.client.post(path='/api/submit-job', data=data) as response:
+            assert response.status == 400
+            text = await response.text()
+            assert text == '{"Error": "You must pass true or false in the rescan param"}'
+
+    @unittest_run_loop
+    async def test_submit_json_fail(self):
+        data = "test"
+        async with self.client.post(path='/api/submit-job', data=data) as response:
+            assert response.status == 400

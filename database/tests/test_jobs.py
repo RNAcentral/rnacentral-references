@@ -11,11 +11,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import datetime
+import sqlalchemy as sa
 
 from aiohttp.test_utils import unittest_run_loop
 from database.models import Job, JOB_STATUS_CHOICES
-from database.job import find_job_to_run, get_hit_count, get_jobs, get_search_date, save_job, save_hit_count, \
-    search_performed, set_job_status
+from database.job import delete_job_data, find_job_to_run, get_hit_count, get_jobs, get_search_date, save_job, \
+    save_hit_count, search_performed, set_job_status
 from database.tests.test_base import DBTestCase
 
 
@@ -37,13 +38,25 @@ class JobTestCase(DBTestCase):
 
     @unittest_run_loop
     async def test_save_new_job(self):
-        job_id = await save_job(self.app['engine'], job_id="foo", query="")
+        job_id = await save_job(self.app['engine'], job_id="foo", query="", search_limit=None)
         assert job_id == "foo"
 
     @unittest_run_loop
     async def test_search_performed(self):
         job = await search_performed(self.app['engine'], self.job_id)
         assert job["job_id"] == self.job_id
+
+    @unittest_run_loop
+    async def test_delete_job_data(self):
+        job_id = await save_job(self.app['engine'], job_id="bar", query="", search_limit=None)
+        await delete_job_data(self.app['engine'], job_id=job_id)
+
+        async with self.app['engine'].acquire() as connection:
+            query = (sa.select([sa.func.count(Job.c.job_id)]).select_from(Job))
+            async for row in connection.execute(query):
+                result = row._row[0]
+
+        assert result == 1  # 1 from setUpAsync (urs0001)
 
     @unittest_run_loop
     async def test_find_job_to_run(self):
@@ -58,9 +71,12 @@ class JobTestCase(DBTestCase):
     @unittest_run_loop
     async def test_get_jobs(self):
         # should return jobs with hit_count > 0
-        await save_job(self.app['engine'], job_id="FOOBar", query="")  # this id should not appear in the results
+        # urs0001 will have hit_count = 5
         await save_hit_count(self.app['engine'], self.job_id, 5)
+        # this job_id should not appear in the results as FOOBar has no hit_count
+        await save_job(self.app['engine'], job_id="FOOBar", query="", search_limit=None)
         jobs = await get_jobs(self.app['engine'])
+        # return urs0001 only
         assert jobs == [{'job_id': self.job_id, 'display_id': self.display_id}]
 
     @unittest_run_loop
