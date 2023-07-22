@@ -66,6 +66,24 @@ async def search_performed(engine, value):
         raise DatabaseConnectionError("Failed to open DB connection in search_performed() for id = %s" % value) from e
 
 
+async def delete_job_data(engine, job_id):
+    """
+    Delete job_id data
+    :param engine: params to connect to the db
+    :param job_id: job to be deleted
+    :return: None
+    """
+    try:
+        async with engine.acquire() as connection:
+            try:
+                sql_query = sa.text('''DELETE FROM litscan_job WHERE job_id=:job_id''')
+                await connection.execute(sql_query, job_id=job_id)
+            except Exception as e:
+                raise SQLError("Failed to delete job_id = %s" % job_id) from e
+    except psycopg2.Error as e:
+        raise DatabaseConnectionError("Failed to open DB connection in delete_job_data() for job_id = %s" % job_id) from e
+
+
 async def save_job(engine, job_id, query, search_limit):
     """
     Save metadata in the database
