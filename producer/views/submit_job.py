@@ -14,7 +14,24 @@ limitations under the License.
 from aiohttp import web
 from aiojobs.aiohttp import atomic
 
-from database.job import save_job, search_performed
+from database.job import delete_job_data, save_job, search_performed
+
+
+async def save_job_data(engine, data):
+    """
+    Function to save job in the database
+    :param engine: params to connect to the db
+    :param data: job details
+    :return: job_id
+    """
+    # get params
+    query = data['query'] if "query" in data else '("rna" OR "mrna" OR "ncrna" OR "lncrna" OR "rrna" OR "sncrna")'
+    search_limit = int(data['search_limit']) if "search_limit" in data else None
+
+    # save metadata about this job
+    job_id = await save_job(engine, data['id'], query, search_limit)
+
+    return job_id
 
 
 @atomic
@@ -25,22 +42,31 @@ async def submit_job(request):
     :param request: used to get the params to connect to the db
     :return: json with job_id
     """
-    data = await request.json()
+    try:
+        data = await request.json()
+    except ValueError:
+        return web.json_response({"Error": "Please check the parameters used in the search"}, status=400)
 
     if "id" not in data:
-        return web.json_response({"id": "Not found"}, status=400)
+        return web.json_response({"Error": "Id not found"}, status=400)
+
+    if "rescan" in data and type(data["rescan"]) is not bool:
+        return web.json_response({"Error": "You must pass true or false in the rescan param"}, status=400)
 
     # check if this id has already been searched
     job = await search_performed(request.app['engine'], data['id'])
 
-    if job:
-        # get job_id
+    if job and "rescan" in data and data["rescan"]:
+        # delete old data
+        await delete_job_data(request.app['engine'], job['job_id'])
+
+        # run new search
+        job_id = await save_job_data(request.app['engine'], data)
+    elif job:
+        # return current job_id
         job_id = job['job_id']
     else:
-        query = data['query'] if "query" in data else '("rna" OR "mrna" OR "ncrna" OR "lncrna" OR "rrna" OR "sncrna")'
-        search_limit = int(data['search_limit']) if "search_limit" in data else None
-
-        # save metadata about this job
-        job_id = await save_job(request.app['engine'], data['id'], query, search_limit)
+        # run new search
+        job_id = await save_job_data(request.app['engine'], data)
 
     return web.json_response({"job_id": job_id}, status=201)
