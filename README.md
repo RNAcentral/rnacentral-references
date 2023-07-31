@@ -36,7 +36,7 @@ instance of postgres on your local machine's 5432 port.
 
 ## How it works?
 
-Submit a job using
+Submit a single job using
 ```
 curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\"}" localhost:8080/api/submit-job
 ```
@@ -68,6 +68,19 @@ Use the `search_limit` parameter if you want to set a maximum number of articles
 ```
 curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\", \"search_limit\": 10}" localhost:8080/api/submit-job
 ```
+
+To rescan an id, use the `rescan` parameter
+```
+curl -H "Content-Type:application/json" -d "{\"id\": \"RF00001\", \"rescan\": true}" localhost:8080/api/submit-job
+```
+
+To submit multiple ids run
+```
+curl -H "Content-Type:application/json" -d "{\"job_id\": [\"5S rRNA\", \"5S ribosomal RNA\"], \"database\": \"rfam\", \"primary_id\": \"RF00001\", \"search_limit\": 10}" localhost:8080/api/multiple-jobs
+```
+
+The example above is useful for submitting a collection of identifiers (Ids) related to a single gene/accession.
+Note that the URL used in this case is `localhost:8080/api/multiple-jobs`.
 
 You can check the results by accessing the URL
 ```
