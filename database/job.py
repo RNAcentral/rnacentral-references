@@ -77,7 +77,7 @@ async def delete_job_data(engine, job_id):
         async with engine.acquire() as connection:
             try:
                 sql_query = sa.text('''DELETE FROM litscan_job WHERE job_id=:job_id''')
-                await connection.execute(sql_query, job_id=job_id)
+                await connection.execute(sql_query, job_id=job_id.lower())
             except Exception as e:
                 raise SQLError("Failed to delete job_id = %s" % job_id) from e
     except psycopg2.Error as e:
