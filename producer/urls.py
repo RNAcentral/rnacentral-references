@@ -13,12 +13,13 @@ limitations under the License.
 from aiohttp import web
 from aiohttp_swagger import setup_swagger
 
-from producer.views import index, job_result, submit_job
+from producer.views import index, job_result, submit_job, submit_multiple_jobs
 
 
 def setup_routes(app):
     app.add_routes([web.get('/', index.index)])
     app.add_routes([web.post('/api/submit-job', submit_job.submit_job)])
+    app.add_routes([web.post('/api/multiple-jobs', submit_multiple_jobs.submit_multiple_jobs)])
     app.add_routes([web.get('/api/results/{job_id:.*}', job_result.job_result)])
 
     # setup swagger documentation
