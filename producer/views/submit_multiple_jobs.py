@@ -22,7 +22,7 @@ from database.metadata import metadata, search_metadata
 async def submit_multiple_jobs(request):
     """
     Function to submit multiple jobs and also save metadata. Run this command to test:
-    curl -H "Content-Type:application/json" -d "{\"job_id\": [\"5S rRNA\", \"5S ribosomal RNA\"], \"database\": \"rfam\", \"primary_id\": \"RF00001\", \"search_limit\": 10}" localhost:8080/api/multiple-jobs
+    curl -H "Content-Type:application/json" -d "{\"job_list\": [\"5S rRNA\", \"5S ribosomal RNA\"], \"id\": \"RF00001\", \"search_limit\": 10}" localhost:8080/api/multiple-jobs
     :param request: used to get the params to connect to the db
     :return: json with metadata
     """
@@ -31,24 +31,31 @@ async def submit_multiple_jobs(request):
     except ValueError:
         return web.json_response({"Error": "Please check the parameters used in the search"}, status=400)
 
-    if "job_id" not in data or not isinstance(data["job_id"], list):
-        return web.json_response({"Error": "You must submit a list of job_ids as a parameter"}, status=400)
+    if "job_list" not in data and "id" not in data:
+        return web.json_response({"Error": "You must submit id and/or job_list as a parameter"}, status=400)
 
-    if "database" not in data:
-        return web.json_response({"Error": "You must submit the database name as a parameter"}, status=400)
-    else:
-        database = data["database"].lower()
+    if "job_list" in data and not isinstance(data["job_list"], list):
+        return web.json_response({"Error": "You must submit a list of ids as a parameter"}, status=400)
+
+    if "id" in data and not isinstance(data["id"], str):
+        return web.json_response({"Error": "You must submit a single id in string format as a parameter"}, status=400)
 
     if "rescan" in data and type(data["rescan"]) is not bool:
         return web.json_response({"Error": "You must pass true or false in the rescan param"}, status=400)
 
+    if "database" in data:
+        database = data["database"].lower()
+    else:
+        database = "uninformed"
+
     # get params
-    primary_id = data["primary_id"] if "primary_id" in data else None
+    job_list = data["job_list"] if "job_list" in data else []
+    primary_id = data["id"] if "id" in data else None
     query = data['query'] if "query" in data else '("rna" OR "mrna" OR "ncrna" OR "lncrna" OR "rrna" OR "sncrna")'
     search_limit = int(data['search_limit']) if "search_limit" in data else None
 
-    job_list = []
-    for job in data["job_id"]:
+    ids = []
+    for job in job_list:
         # check if the job_id exists in the database
         job_id = await search_performed(request.app["engine"], job)
 
@@ -65,11 +72,11 @@ async def submit_multiple_jobs(request):
             # save job_id
             job_id = await save_job(request.app["engine"], job, query, search_limit)
 
-        job_list.append(job_id.lower())
+        ids.append(job_id.lower())
 
     if primary_id:
         # check if the primary_id exists in the database
-        primary_id = await search_performed(request.app["engine"], data["primary_id"])
+        primary_id = await search_performed(request.app["engine"], data["id"])
 
         if primary_id and "rescan" in data and data["rescan"]:
             # delete old data
@@ -82,27 +89,53 @@ async def submit_multiple_jobs(request):
             primary_id = primary_id["job_id"]
         else:
             # save primary_id
-            primary_id = await save_job(request.app["engine"], data['primary_id'], query, search_limit)
+            primary_id = await save_job(request.app["engine"], data['id'], query, search_limit)
 
         primary_id = primary_id.lower()
 
+    # data in table litscan_database is used by Litsumm for creating summaries
     metadata_list = []
-    for job in job_list:
-        # check if this job_id already exists with this database and primary_id
+
+    for job in ids:
+        # check if this job already exists with this database and primary_id
         get_metadata = await search_metadata(request.app["engine"], job, database, primary_id)
 
         if not get_metadata:
             metadata_list.append({"job_id": job, "name": database, "primary_id": primary_id})
 
-    if primary_id:
+    if primary_id and ids:
+        # if there is primary_id and job_list, the primary_id should be saved as
+        # id | name | job_id | primary_id
+        # ---+------+--------+-------------
+        # 1  | db   | id     |
+
         # check if this primary_id already exists with this database
         get_metadata = await search_metadata(request.app["engine"], primary_id, database, None)
 
         if not get_metadata:
             metadata_list.append({"job_id": primary_id, "name": database, "primary_id": None})
 
+    elif primary_id and not ids:
+        # if there is no job_list, to enable Litsumm to create a summary, the primary_id should be saved as
+        # id | name | job_id | primary_id
+        # ---+------+--------+-------------
+        # 1  | db   |        | id
+
+        # check if this primary_id already exists with this database
+        get_metadata = await search_metadata(request.app["engine"], None, database, primary_id)
+
+        if not get_metadata:
+            metadata_list.append({"job_id": None, "name": database, "primary_id": primary_id})
+
     if metadata_list:
         # save metadata
         await metadata(request.app['engine'], metadata_list)
 
-    return web.json_response({"job_id": job_list, "name": database, "primary_id": primary_id}, status=201)
+    if ids and primary_id:
+        response = {"id": primary_id, "job_list": ids}
+    elif primary_id:
+        response = {"id": primary_id}
+    else:
+        response = {"job_list": ids}
+
+    return web.json_response(response, status=201)
