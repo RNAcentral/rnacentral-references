@@ -219,6 +219,10 @@ async def seek_references(engine, job_id, consumer_ip, date):
     hit_count = 0
     query_filter, search_limit = await get_query_and_limit(engine, job_id.lower())
 
+    # remove job_id from query
+    # the job_id will make no difference to filter out possible false positives
+    query_filter = query_filter.lower().replace(job_id.lower(), "") if query_filter else None
+
     # TODO: Should we set a limit on the number of articles to be searched?
     search_limit = search_limit if search_limit else 1000000
 
