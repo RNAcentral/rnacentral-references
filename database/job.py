@@ -138,6 +138,7 @@ async def set_job_status(engine, job_id, status):
                     job = None  # if connection didn't return any rows, return None
                     async for row in connection.execute(query, job_id=job_id, status=status, finished=finished):
                         job = row.job_id
+                        break
                     return job
                 else:
                     query = sa.text('''
@@ -150,6 +151,7 @@ async def set_job_status(engine, job_id, status):
                     job = None  # if connection didn't return any rows, return None
                     async for row in connection.execute(query, job_id=job_id, status=status):
                         job = row.job_id
+                        break
                     return job
             except Exception as e:
                 raise SQLError("Failed to set_job_status, job_id = %s, status = %s" % (job_id, status)) from e
