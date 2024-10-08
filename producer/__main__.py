@@ -1,5 +1,5 @@
 """
-Copyright [2009-2019] EMBL-European Bioinformatics Institute
+Copyright [2009-present] EMBL-European Bioinformatics Institute
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -17,7 +17,7 @@ import asyncio
 
 import aiohttp_cors
 from aiojobs.aiohttp import setup as setup_aiojobs
-from aiohttp import web
+from aiohttp import ClientSession, web
 
 from . import settings
 from database.job import find_job_to_run
@@ -32,45 +32,55 @@ async def on_startup(app):
     # initialize database connection
     await init_pg(app)
 
-    if hasattr(app['settings'], "MIGRATE") and app['settings'].MIGRATE:
+    if hasattr(app["settings"], "MIGRATE") and app["settings"].MIGRATE:
         # create initial migrations in the database
-        await migrate(app['settings'].ENVIRONMENT)
+        await migrate(app["settings"].ENVIRONMENT)
 
     # initialize scheduling tasks to consumers in background
-    await create_consumer_scheduler(app)
+    app["check_jobs_task"] = asyncio.create_task(check_jobs_and_consumers(app))
+
+
+async def on_cleanup(app):
+    # proper cleanup for background task on app shutdown
+    task = app.get("check_jobs_task")
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            logging.info("Background task check_jobs_and_consumers was cancelled")
+
+    # close the database connection
+    await close_pg(app)
 
 
 async def check_jobs_and_consumers(app):
-    # if there are any pending jobs and free consumers, schedule their execution
-    unfinished_job = await find_job_to_run(app['engine'])
-    available_consumers = await find_available_consumers(app['engine'])
-
-    for consumer in available_consumers:
-        if unfinished_job:
-            job = unfinished_job.pop(0)
-            await delegate_job_to_consumer(
-                consumer_ip=consumer.ip,
-                consumer_port=consumer.port,
-                job_id=job[0]
-            )
-
-
-async def create_consumer_scheduler(app):
     """
-    Periodically runs a task that checks the status of consumers in the database and
-     - schedules jobs to run on consumers
-     - restarts stuck consumers
+    Periodically run a task that checks for available consumers and pending jobs
 
-    Stolen from:
-    https://stackoverflow.com/questions/37512182/how-can-i-periodically-execute-a-function-with-asyncio
+    :param app: app object
+    :return: None
     """
-    async def periodic():
+    async with ClientSession() as session:
         while True:
-            loop.create_task(check_jobs_and_consumers(app))
-            await asyncio.sleep(4)
+            try:
+                # fetch jobs and available consumers
+                unfinished_jobs = await find_job_to_run(app["engine"])
+                available_consumers = await find_available_consumers(app["engine"])
 
-    loop = asyncio.get_event_loop()
-    loop.create_task(periodic())
+                while unfinished_jobs and available_consumers:
+                    consumer = available_consumers.pop(0)
+                    job = unfinished_jobs.pop(0)
+                    await delegate_job_to_consumer(
+                        consumer_ip=consumer.ip,
+                        consumer_port=consumer.port,
+                        job_id=job[0],
+                        session=session
+                    )
+            except Exception as e:
+                logging.error(f"Unexpected error in check_jobs_and_consumers: {str(e)}", exc_info=True)
+            finally:
+                await asyncio.sleep(3)
 
 
 def create_app():
@@ -80,15 +90,15 @@ def create_app():
     logging.basicConfig(level=logging.DEBUG)
 
     app = web.Application()
-    app.update(name='producer', settings=settings)
+    app.update(name="producer", settings=settings)
 
     # get credentials of the correct environment
     for key, value in get_postgres_credentials(settings.ENVIRONMENT)._asdict().items():
-        setattr(app['settings'], key, value)
+        setattr(app["settings"], key, value)
 
     # create db connection on startup, shutdown on exit
     app.on_startup.append(on_startup)
-    app.on_cleanup.append(close_pg)
+    app.on_cleanup.append(on_cleanup)
 
     # setup views and routes
     setup_routes(app)
@@ -112,17 +122,17 @@ def create_app():
     return app
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     To start the producer, run: python3 -m producer
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--migrate',
-        dest='MIGRATE',
+        "--migrate",
+        dest="MIGRATE",
         default=False,
-        action='store_true',
-        help='Should migrations (that clean the database) be applied on producer startup'
+        action="store_true",
+        help="Should migrations (that clean the database) be applied on producer startup"
     )
     args = parser.parse_args()
 
@@ -131,4 +141,4 @@ if __name__ == '__main__':
         setattr(settings, key, value)
 
     app = create_app()
-    web.run_app(app, host=app['settings'].HOST, port=app['settings'].PORT)
+    web.run_app(app, host=app["settings"].HOST, port=app["settings"].PORT)

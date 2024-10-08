@@ -1,5 +1,5 @@
 """
-Copyright [2009-2019] EMBL-European Bioinformatics Institute
+Copyright [2009-present] EMBL-European Bioinformatics Institute
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -12,6 +12,7 @@ limitations under the License.
 """
 
 import logging
+import asyncio
 
 from aiojobs.aiohttp import setup as setup_aiojobs
 from aiohttp import web
@@ -28,22 +29,37 @@ async def on_startup(app):
     await init_pg(app)
 
     # register self in the database
-    await register_consumer_in_the_database(app)
+    app["register_consumer_task"] = asyncio.create_task(register_consumer_in_the_database(app))
+
+
+async def on_cleanup(app):
+    # cancel the register consumer task
+    task = app.get("register_consumer_task")
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            logging.info("Background task register_consumer_in_the_database was cancelled")
+
+    # close the database connection
+    await close_pg(app)
+
 
 
 def create_app():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.WARNING)
 
     app = web.Application()
-    app.update(name='consumer', settings=settings)
+    app.update(name="consumer", settings=settings)
 
     # get credentials of the correct environment
     for key, value in get_postgres_credentials(settings.ENVIRONMENT)._asdict().items():
-        setattr(app['settings'], key, value)
+        setattr(app["settings"], key, value)
 
     # create db connection on startup, shutdown on exit
     app.on_startup.append(on_startup)
-    app.on_cleanup.append(close_pg)
+    app.on_cleanup.append(on_cleanup)
 
     # setup views and routes
     setup_routes(app)
@@ -57,7 +73,7 @@ def create_app():
 app = create_app()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     To start the consumer, run: python3 -m consumer
     """
