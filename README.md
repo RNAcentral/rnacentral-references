@@ -86,3 +86,10 @@ You can check the results by accessing the URL
 ```
 http://localhost:8080/api/results/rf00001
 ```
+
+### Rate limit from the EuropePMC API
+
+Current rate limit is **10 requests per second** or **500 per minute**. We are making at least 200 requests per minute 
+when this tool is used. If a consumer is searching for an ID that has many articles, this VM can make up to 
+100 requests per minute. The vast majority of IDs searched do not have articles, so the rate limit is unlikely 
+to be exceeded.
