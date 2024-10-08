@@ -31,9 +31,8 @@ async def find_job_to_run(engine):
                          .select_from(Job)
                          .where(Job.c.status == JOB_STATUS_CHOICES.pending)
                          .order_by(Job.c.submitted)
-                         .limit(8))
+                         .limit(10))  # we have 10 consumers
 
-                # get the eight oldest jobs
                 output = []
                 async for row in connection.execute(query):
                     output.append((row.display_id, row.submitted))
