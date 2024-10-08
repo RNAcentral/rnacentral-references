@@ -244,7 +244,7 @@ async def seek_references(engine, job_id, consumer_ip, date):
 
     for element in pmcid_list:
         # wait a while to respect the rate limit
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.6)
 
         # fetch full article
         try:
