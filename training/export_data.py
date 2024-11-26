@@ -173,7 +173,7 @@ async def main():
     manually_annotated = await manually_annotated_articles()
 
     # save to CSV
-    df = pd.DataFrame(manually_annotated)
+    df = pd.DataFrame(list_of_abstracts + manually_annotated)
     df.to_csv("data.csv", mode="a", index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
