@@ -99,10 +99,12 @@ async def rfam_articles() -> Set[str]:
     return pubmed_ids
 
 
-async def manually_annotated_articles() -> List[Dict[str, str]]:
+async def manually_annotated_articles(pmids: Set[str]) -> List[Dict[str, int]]:
     """
-    Retrieves manually annotated articles from the database.
+    Retrieves manually annotated articles from the database, excluding those with PubMed IDs
+    present in the provided `pmids` set.
 
+    :param pmids: a set of PubMed IDs to exclude from the results
     :return: a list of abstracts that were manually annotated
     """
     user = os.getenv("POSTGRES_USER")
@@ -125,7 +127,8 @@ async def manually_annotated_articles() -> List[Dict[str, str]]:
                     ~Article.c.retracted,
                     Article.c.abstract.isnot(None),
                     Article.c.abstract != "",
-                    Article.c.pmcid.in_(subquery)
+                    Article.c.pmcid.in_(subquery),
+                    Article.c.pmid.notin_(pmids)
                 )
                 .limit(limit)
                 .offset(offset)
@@ -170,7 +173,7 @@ async def main():
         cleaned_abstract = await clean_text(abstract)
         list_of_abstracts.append({"abstract": cleaned_abstract, "rna_related": 1})
 
-    manually_annotated = await manually_annotated_articles()
+    manually_annotated = await manually_annotated_articles(pmids)
 
     # save to CSV
     df = pd.DataFrame(list_of_abstracts + manually_annotated)
