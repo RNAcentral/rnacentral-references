@@ -13,7 +13,10 @@ from dotenv import load_dotenv
 from typing import Optional, List, Dict, Set
 
 load_dotenv()
+
+EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 RATE_LIMIT = 8
+NON_RNA_ARTICLE_LIMIT = 2300
 
 
 async def clean_text(text: str) -> str:
@@ -43,7 +46,7 @@ async def fetch_abstract(pmid: str, semaphore: asyncio.Semaphore) -> Optional[st
     async with semaphore:
         try:
             response = requests.get(
-                f"https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=EXT_ID:{pmid}"
+                f"{EUROPE_PMC}/search?query=EXT_ID:{pmid}"
                 f"&resulttype=core&format=json"
             )
             response.raise_for_status()
@@ -151,32 +154,69 @@ async def manually_annotated_articles(pmids: Set[str]) -> List[Dict[str, int]]:
     return results
 
 
+async def non_rna_articles(page):
+    pubmed_ids = set()
+    query = f'/search?query=(IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR AND NOT "rna" ' \
+            f'AND NOT "mrna" AND NOT "ncrna" AND NOT "lncrna" AND NOT "rrna" AND NOT "sncrna") ' \
+            f'&sort_cited:y&pageSize=500&cursorMark={page}&format=json'
+
+    try:
+        response = requests.get(EUROPE_PMC + query)
+        response.raise_for_status()
+        data = json.loads(response.text)
+        results = data["resultList"]["result"]
+        next_page = data["nextCursorMark"]
+        pubmed_ids.update(result["pmid"] for result in results if result["pmid"])
+    except (IndexError, KeyError, requests.RequestException):
+        next_page = None
+
+    return pubmed_ids, next_page
+
+
 async def main():
     """
     Main function to collect abstracts from various sources, clean them,
     and save the data to a CSV file.
     """
+    list_of_abstracts = []
+
+    # use semaphore to fetch abstracts in parallel (respecting the API rate limit)
+    semaphore = asyncio.Semaphore(RATE_LIMIT)
+
+    # get abstracts from TarBase and Rfam
     tarbase, rfam = await asyncio.gather(
         tarbase_articles(),
         rfam_articles()
     )
-    pmids = tarbase | rfam
+    tarbase_rfam_pmids = tarbase | rfam
+    tarbase_rfam_task = [fetch_abstract(pmid, semaphore) for pmid in tarbase_rfam_pmids]
+    tarbase_rfam_abstracts = await asyncio.gather(*tarbase_rfam_task)
 
-    # fetch abstracts in parallel (respecting the API rate limit)
-    semaphore = asyncio.Semaphore(RATE_LIMIT)
-    tasks = [fetch_abstract(pmid, semaphore) for pmid in pmids]
-    fetched_abstracts = await asyncio.gather(*tasks)
-
-    # process fetched abstracts
-    list_of_abstracts = []
-    for abstract in filter(None, fetched_abstracts):
+    for abstract in filter(None, tarbase_rfam_abstracts):
         cleaned_abstract = await clean_text(abstract)
         list_of_abstracts.append({"abstract": cleaned_abstract, "rna_related": 1})
 
-    manually_annotated = await manually_annotated_articles(pmids)
+    # get non-rna related abstracts
+    non_rna_pmids = set()
+    next_page = "*"
+    while len(non_rna_pmids) < NON_RNA_ARTICLE_LIMIT and next_page:
+        tmp_pmids, next_page = await non_rna_articles(next_page)
+        for pmid in tmp_pmids:
+            if len(non_rna_pmids) < NON_RNA_ARTICLE_LIMIT:
+                non_rna_pmids.add(pmid)
+
+    non_rna_task = [fetch_abstract(pmid, semaphore) for pmid in non_rna_pmids]
+    non_rna_abstracts = await asyncio.gather(*non_rna_task)
+
+    for abstract in filter(None, non_rna_abstracts):
+        cleaned_abstract = await clean_text(abstract)
+        list_of_abstracts.append({"abstract": cleaned_abstract, "rna_related": 0})
+
+    # get abstracts of manually annotated articles (extracted from the RNAcentral database)
+    manually_annotated = await manually_annotated_articles(tarbase_rfam_pmids)
 
     # save to CSV
-    df = pd.DataFrame(list_of_abstracts + manually_annotated)
+    df = pd.DataFrame(manually_annotated + list_of_abstracts)
     df.to_csv("data.csv", mode="a", index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
