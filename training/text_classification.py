@@ -1,3 +1,4 @@
+import joblib
 import pandas as pd
 
 from sklearn.ensemble import RandomForestClassifier
@@ -58,6 +59,8 @@ def main():
     #    macro avg       0.99      0.99      0.99       864
     # weighted avg       0.99      0.99      0.99       864
 
+    joblib.dump(pipeSVC, "svc_pipeline.pkl")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
