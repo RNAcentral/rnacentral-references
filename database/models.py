@@ -102,6 +102,7 @@ Article = sa.Table(
     sa.Column('score', sa.Integer()),
     sa.Column('cited_by', sa.Integer()),
     sa.Column('retracted', sa.Boolean),
+    sa.Column('rna_related', sa.Boolean),
     sa.Column('type', sa.String(100)),
 )
 
@@ -247,6 +248,7 @@ async def migrate(env):
                   score INTEGER,
                   cited_by INTEGER,
                   retracted BOOLEAN,
+                  rna_related BOOLEAN,
                   type VARCHAR(100))
             ''')
 
