@@ -13,7 +13,7 @@ load_dotenv()
 EUROPE_PMC: str = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 RATE_LIMIT: int = 8
 ARTICLE_LIMIT: int = 100
-EXCLUDED_KEYWORDS: List[str] = ["non-coding", "ncrna", "lncrna", "sncrna", "mirna"]
+KEYWORDS: List[str] = ["non-coding", "ncrna", "lncrna", "sncrna", "mirna"]
 
 
 async def fetch_pmids(params: Dict[str, Any]) -> Set[str]:
@@ -34,7 +34,7 @@ async def fetch_pmids(params: Dict[str, Any]) -> Set[str]:
     return pubmed_ids
 
 
-async def process_abstracts(pmids: Set[str], semaphore: asyncio.Semaphore, rna_related: int) -> List[Dict[str, Any]]:
+async def process_abstracts(pmids: Set[str], semaphore: asyncio.Semaphore, rna_related: int, keyword: str) -> List[Dict[str, Any]]:
     """Fetch, clean, and classify abstracts based on RNA relation."""
     tasks = [fetch_abstract(pmid, semaphore) for pmid in pmids]
     abstracts = await asyncio.gather(*tasks)
@@ -44,11 +44,11 @@ async def process_abstracts(pmids: Set[str], semaphore: asyncio.Semaphore, rna_r
     for abstract in filter(None, abstracts):
         cleaned_abstract = await clean_text(abstract)
 
-        if rna_related == 0 and any(term in cleaned_abstract for term in EXCLUDED_KEYWORDS):
+        if rna_related == 0 and any(term in cleaned_abstract for term in KEYWORDS):
             continue
-        elif rna_related == 1 and not any(term in cleaned_abstract for term in EXCLUDED_KEYWORDS):
+        elif rna_related == 1 and not any(term in cleaned_abstract for term in KEYWORDS):
             continue
-        elif "mrna" in cleaned_abstract and number_of_abstracts < ARTICLE_LIMIT:
+        elif keyword in cleaned_abstract and number_of_abstracts < ARTICLE_LIMIT:
             processed.append({"abstract": cleaned_abstract, "rna_related": rna_related})
             number_of_abstracts += 1
         elif number_of_abstracts >= ARTICLE_LIMIT:
@@ -79,6 +79,7 @@ async def main() -> None:
                 "pageSize": 1000,
             },
             "rna_related": 1,
+            "keyword": "mrna",
         },
         {
             "params": {
@@ -88,6 +89,7 @@ async def main() -> None:
                 "pageSize": 1000,
             },
             "rna_related": 0,
+            "keyword": "mrna",
         },
         {
             "params": {
@@ -97,6 +99,7 @@ async def main() -> None:
                 "pageSize": 1000,
             },
             "rna_related": 1,
+            "keyword": "rna-seq",
         },
         {
             "params": {
@@ -106,6 +109,7 @@ async def main() -> None:
                 "pageSize": 1000,
             },
             "rna_related": 0,
+            "keyword": "rna-seq",
         },
     ]
 
@@ -117,7 +121,7 @@ async def main() -> None:
         processed_pmids.update(new_pmids)
 
         # fetch abstracts for the new PMIDs
-        abstracts = await process_abstracts(pmids, semaphore, query["rna_related"])
+        abstracts = await process_abstracts(new_pmids, semaphore, query["rna_related"], query["keyword"])
         list_of_abstracts.extend(abstracts)
 
     df = pd.DataFrame(list_of_abstracts)
