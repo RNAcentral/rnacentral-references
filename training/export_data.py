@@ -28,7 +28,7 @@ async def clean_text(text: str) -> str:
     :return: cleaned text
     """
     text = text.lower()
-    text = re.sub(r'<[^>]*>', "", text)
+    text = re.sub(r'<[^>]*>', " ", text)
     text = re.sub(r"\[.*?\]", "", text)
     text = re.sub(r"https?://\S+|www\.\S+", "", text)
     text = re.sub(r"\s+", " ", text)
