@@ -16,7 +16,7 @@ load_dotenv()
 
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 RATE_LIMIT = 8
-NON_RNA_ARTICLE_LIMIT = 2300
+NON_RNA_ARTICLE_LIMIT = 3500
 
 
 async def clean_text(text: str) -> str:
@@ -102,6 +102,34 @@ async def rfam_articles() -> Set[str]:
     return pubmed_ids
 
 
+async def go_term_publication() -> Set[str]:
+    """
+    Retrieves PubMed IDs (PMIDs) from Go terms.
+
+    :return: a set of PMIDs found in the go_term_publication_map table
+    """
+    user = os.getenv("POSTGRES_USER")
+    password = os.getenv("POSTGRES_PASSWORD")
+    database = os.getenv("POSTGRES_DATABASE")
+    host = os.getenv("POSTGRES_HOST")
+    port = os.getenv("POSTGRES_PORT")
+
+    async with create_engine(user=user, database=database, host=host, password=password, port=port) as engine:
+        async with engine.acquire() as connection:
+            query = sa.text('''
+                SELECT DISTINCT refs.pmid
+                FROM go_term_publication_map map
+                JOIN rnc_references refs
+                ON refs.id=map.reference_id
+            ''')
+
+            get_data = await connection.execute(query)
+            rows = await get_data.fetchall()
+            pubmed_ids = {row["pmid"] for row in rows}
+
+    return pubmed_ids
+
+
 async def manually_annotated_articles(pmids: Set[str]) -> List[Dict[str, int]]:
     """
     Retrieves manually annotated articles from the database, excluding those with PubMed IDs
@@ -157,7 +185,7 @@ async def manually_annotated_articles(pmids: Set[str]) -> List[Dict[str, int]]:
 async def non_rna_articles(page):
     pubmed_ids = set()
     query = f'/search?query=(IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR AND NOT "rna" ' \
-            f'AND NOT "mrna" AND NOT "ncrna" AND NOT "lncrna" AND NOT "rrna" AND NOT "sncrna") ' \
+            f'AND NOT "mrna" AND NOT "ncrna" AND NOT "lncrna" AND NOT "rrna" AND NOT "sncrna" AND NOT "mirna") ' \
             f'&sort_cited:y&pageSize=500&cursorMark={page}&format=json'
 
     try:
@@ -184,15 +212,16 @@ async def main():
     semaphore = asyncio.Semaphore(RATE_LIMIT)
 
     # get abstracts from TarBase and Rfam
-    tarbase, rfam = await asyncio.gather(
+    tarbase, rfam, go_term = await asyncio.gather(
         tarbase_articles(),
-        rfam_articles()
+        rfam_articles(),
+        go_term_publication()
     )
-    tarbase_rfam_pmids = tarbase | rfam
-    tarbase_rfam_task = [fetch_abstract(pmid, semaphore) for pmid in tarbase_rfam_pmids]
-    tarbase_rfam_abstracts = await asyncio.gather(*tarbase_rfam_task)
+    rna_pmids = tarbase | rfam | go_term
+    rna_task = [fetch_abstract(pmid, semaphore) for pmid in rna_pmids]
+    rna_abstracts = await asyncio.gather(*rna_task)
 
-    for abstract in filter(None, tarbase_rfam_abstracts):
+    for abstract in filter(None, rna_abstracts):
         cleaned_abstract = await clean_text(abstract)
         list_of_abstracts.append({"abstract": cleaned_abstract, "rna_related": 1})
 
@@ -213,7 +242,7 @@ async def main():
         list_of_abstracts.append({"abstract": cleaned_abstract, "rna_related": 0})
 
     # get abstracts of manually annotated articles (extracted from the RNAcentral database)
-    manually_annotated = await manually_annotated_articles(tarbase_rfam_pmids)
+    manually_annotated = await manually_annotated_articles(rna_pmids)
 
     # save to CSV
     df = pd.DataFrame(manually_annotated + list_of_abstracts)
