@@ -2,7 +2,7 @@ import joblib
 import streamlit as st
 
 
-model = joblib.load("svc_pipeline.pkl")
+model = joblib.load("training/svc_pipeline.pkl")
 st.title("Text Classification - RNA Related or Not")
 user_input = st.text_area("Enter text for classification:", "")
 
