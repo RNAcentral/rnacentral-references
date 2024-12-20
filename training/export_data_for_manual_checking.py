@@ -13,7 +13,7 @@ load_dotenv()
 EUROPE_PMC: str = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 RATE_LIMIT: int = 8
 ARTICLE_LIMIT: int = 100
-KEYWORDS: List[str] = ["non-coding", "ncrna", "lncrna", "sncrna", "mirna"]
+KEYWORDS: List[str] = ["non-coding", "noncoding", "ncrna", "lncrna", "sncrna", "mirna", "trna", "rbp"]
 
 
 async def fetch_pmids(params: Dict[str, Any]) -> Set[str]:
