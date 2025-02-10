@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    pvc: doccano
+  name: doccano
+spec:
+  storageClassName: standard-nfs-production
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: doccano
+  labels:
+    app: doccano
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+  selector:
+    app: doccano
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doccano
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: doccano
+  template:
+    metadata:
+      labels:
+        app: doccano
+    spec:
+      containers:
+        - image: doccano/doccano:latest
+          name: doccano
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 8000
+          resources:
+            requests:
+              memory: "2000Mi"
+              cpu: "1000m"
+            limits:
+              memory: "2000Mi"
+          volumeMounts:
+            - mountPath: /data
+              name: doccano
+          envFrom:
+            - secretRef:
+                name: credentials
+      restartPolicy: Always
+      volumes:
+      - name: doccano
+        persistentVolumeClaim:
+          claimName: doccano
