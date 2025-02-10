@@ -13,7 +13,10 @@ load_dotenv()
 EUROPE_PMC: str = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 RATE_LIMIT: int = 8
 ARTICLE_LIMIT: int = 100
-KEYWORDS: List[str] = ["non-coding", "noncoding", "ncrna", "lncrna", "sncrna", "mirna", "trna", "rbp"]
+KEYWORDS: List[str] = [
+    "non-coding", "noncoding", "ncrna", "rrna", "lncrna", "sncrna", "mirna", "trna", "rbp", "snrna", "pirna",
+    "lincrna", "scrna", "pre-mirna", "riboswitch"
+]
 
 
 async def fetch_pmids(params: Dict[str, Any]) -> Set[str]:
@@ -73,7 +76,7 @@ async def main() -> None:
     queries: List[Dict[str, Any]] = [
         {
             "params": {
-                "query": 'TITLE_ABS:"mrna" AND "ncrna" AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR',
+                "query": 'TITLE_ABS:("mrna" AND "ncrna") AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR',
                 "format": "json",
                 "sort_cited": "y",
                 "pageSize": 1000,
@@ -83,7 +86,7 @@ async def main() -> None:
         },
         {
             "params": {
-                "query": 'TITLE_ABS:"mrna" AND NOT ("ncrna" OR "rrna" OR "sncrna") AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR',
+                "query": 'TITLE_ABS:("mrna" AND NOT ("ncrna" OR "rrna" OR "sncrna" OR "lncrna")) AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR',
                 "format": "json",
                 "sort_cited": "y",
                 "pageSize": 1000,
@@ -103,7 +106,7 @@ async def main() -> None:
         },
         {
             "params": {
-                "query": 'TITLE_ABS:("rna-seq" AND NOT ("ncrna" OR "rrna" OR "sncrna")) AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR',
+                "query": 'TITLE_ABS:("rna-seq" AND NOT ("ncrna" OR "rrna" OR "sncrna" OR "lncrna")) AND IN_EPMC:Y AND OPEN_ACCESS:Y AND NOT SRC:PPR',
                 "format": "json",
                 "sort_cited": "y",
                 "pageSize": 1000,
