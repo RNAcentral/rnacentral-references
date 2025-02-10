@@ -16,3 +16,4 @@ organism_textmining_mentions.tsv
 training/rfam/*
 training/tarbase/*
 training/data.csv
+kubernetes/secrets
