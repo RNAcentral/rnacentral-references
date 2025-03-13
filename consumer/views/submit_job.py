@@ -12,6 +12,7 @@ limitations under the License.
 """
 import asyncio
 import datetime
+import joblib
 import logging
 import nltk
 import re
@@ -26,6 +27,7 @@ from database.job import get_hit_count, get_search_date, save_hit_count, set_job
 from database.models import CONSUMER_STATUS_CHOICES, JOB_STATUS_CHOICES
 from database.results import get_pmcid, get_pmcid_in_result, save_article, save_result, save_abstract_sentences, \
     save_body_sentences
+from training.export_data import clean_text
 from xml.etree import ElementTree as ET
 from xml.etree.ElementTree import ParseError
 
@@ -429,6 +431,12 @@ async def seek_references(engine, job_id, consumer_ip, date):
                             article_response["journal"] = journal.text
                         except AttributeError:
                             logging.debug("Journal not found for pmcid {}".format(element["pmcid"]))
+
+                    # text classification - is it RNA-related?
+                    cleaned_abstract = await clean_text(abstract)
+                    rna_pipeline = joblib.load("training/svc_pipeline.pkl")
+                    relevance_label = rna_pipeline.predict([cleaned_abstract])[0]
+                    article_response["rna_related"] = bool(int(relevance_label))
 
                     # add pmcid
                     article_response["pmcid"] = element["pmcid"]
