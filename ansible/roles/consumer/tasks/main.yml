@@ -40,10 +40,14 @@
         - "--exclude=/ansible"
         - "--exclude=/get_ids"
         - "--exclude=/producer/files/*"
+        - "--exclude=/training/*.csv"
+        - "--exclude=/training/old_files"
+        - "--exclude=/training/rfam"
+        - "--exclude=/training/scripts"
+        - "--exclude=/training/tarbase"
         - "--exclude=/__pycache__"
         - "--exclude=/.*"
         - "--exclude=/venv"
-        - "--exclude=organism_textmining_mentions.tsv"
     tags: [ rsync ]
 
   - name: Create virtualenv and install packages
