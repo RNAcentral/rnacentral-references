@@ -13,7 +13,9 @@ __pycache__/
 *.pyo
 Rfam Families and Aliases - Sheet1.csv
 organism_textmining_mentions.tsv
+training/old_files/*
 training/rfam/*
+training/scripts/*
 training/tarbase/*
 training/data.csv
 kubernetes/secrets
