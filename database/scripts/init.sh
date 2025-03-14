@@ -38,6 +38,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
           cited_by integer,
           retracted boolean,
           rna_related boolean,
+          probability float,
           type character varying(100)
       );
       ALTER TABLE public.litscan_article OWNER TO $LITSCAN_USER;

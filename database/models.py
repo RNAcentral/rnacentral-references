@@ -103,6 +103,7 @@ Article = sa.Table(
     sa.Column('cited_by', sa.Integer()),
     sa.Column('retracted', sa.Boolean),
     sa.Column('rna_related', sa.Boolean),
+    sa.Column('probability', sa.Float),
     sa.Column('type', sa.String(100)),
 )
 
@@ -249,6 +250,7 @@ async def migrate(env):
                   cited_by INTEGER,
                   retracted BOOLEAN,
                   rna_related BOOLEAN,
+                  probability FLOAT,
                   type VARCHAR(100))
             ''')
 
