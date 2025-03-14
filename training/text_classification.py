@@ -1,6 +1,7 @@
 import joblib
 import pandas as pd
 
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score, classification_report
@@ -27,7 +28,7 @@ def main():
     y = df["rna_related"]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    pipeMNB = Pipeline(steps=[("tfidf", TfidfVectorizer(stop_words="english", min_df=5)), ("clf", MultinomialNB())])
+    pipeMNB = Pipeline(steps=[("tfidf", TfidfVectorizer()), ("clf", MultinomialNB())])
     pipeMNB.fit(X_train, y_train)
     predictMNB = pipeMNB.predict(X_test)
 
@@ -35,7 +36,7 @@ def main():
     pipeCNB.fit(X_train, y_train)
     predictCNB = pipeCNB.predict(X_test)
 
-    pipeSVC = Pipeline(steps=[("tfidf", TfidfVectorizer()), ("clf", LinearSVC())])
+    pipeSVC = Pipeline(steps=[("tfidf", TfidfVectorizer()), ("clf", CalibratedClassifierCV(LinearSVC()))])
     pipeSVC.fit(X_train, y_train)
     predictSVC = pipeSVC.predict(X_test)
 
