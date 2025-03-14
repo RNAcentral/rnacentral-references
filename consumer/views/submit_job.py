@@ -437,6 +437,8 @@ async def seek_references(engine, job_id, consumer_ip, date):
                     rna_pipeline = joblib.load("training/svc_pipeline.pkl")
                     relevance_label = rna_pipeline.predict([cleaned_abstract])[0]
                     article_response["rna_related"] = bool(int(relevance_label))
+                    probability = rna_pipeline.predict_proba([cleaned_abstract])[0][1]
+                    article_response["probability"] = round(float(probability), 2)
 
                     # add pmcid
                     article_response["pmcid"] = element["pmcid"]
