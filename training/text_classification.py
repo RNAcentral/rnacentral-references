@@ -18,6 +18,9 @@ def main():
     - stop_words="english"
     - min_df=5
     """
+    # this file is available in RNA Resources -> RNAcentral -> RNAcentral References folder on Google Drive.
+    # articles up to line 6295 were extracted using the export_data.py script. The last 400 articles were
+    # manually reviewed by the team.
     df = pd.read_csv("data.csv")
     print(df["rna_related"].value_counts(), "\n")
     # rna_related
