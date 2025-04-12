@@ -3,6 +3,7 @@
     yum:
       name:
       - libpq-devel
+      - sqlite-devel
     tags: [ install-deps ]
 
   - name: Install Python 3.9
