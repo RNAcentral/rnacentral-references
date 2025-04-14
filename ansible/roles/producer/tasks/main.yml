@@ -101,6 +101,7 @@
     shell: |
       source /srv/reference/venv/bin/activate
       mkdir -p /var/log/reference
+      chown -R centos.centos /var/log/reference
       cd /srv/reference
       ENVIRONMENT=PRODUCTION nohup python -m producer &> /var/log/reference/access_log &
     tags: [ restart, start ]
