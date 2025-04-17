@@ -50,6 +50,10 @@
         - "--exclude=/venv"
     tags: [ rsync ]
 
+#  - name: Copy .env
+#    copy: src=../../../../rnacentral-references/.env dest=/srv/reference owner=centos mode=0640
+#    tags: [ copy-env ]
+
   - name: Create virtualenv and install packages
     pip:
       requirements: /srv/reference/requirements.txt
